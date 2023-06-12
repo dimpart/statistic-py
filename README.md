@@ -55,7 +55,7 @@ Input command ```dimid --config=etc/config.ini generate``` and it would response
 !!!  contacts path: /var/dim/private/{ADDRESS}/contacts.js
 !!!   members path: /var/dim/private/{ADDRESS}/members.js
 Generating DIM account...
---- address type(s) ---
+--- address types ---
     0: User
     1: Group (User Group)
     2: Station (Server Node)
@@ -64,10 +64,6 @@ Generating DIM account...
     5: ICP (Content Provider)
     6: Supervisor (Company President)
     7: Company (Super Group for ISP/ICP)
-    8: User (Deprecated)
-   16: Group (Deprecated)
-  136: Station (Deprecated)
-  200: Bot (Deprecated)
 >>> please input address type:
 ```
 

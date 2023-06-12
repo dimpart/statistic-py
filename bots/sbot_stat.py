@@ -27,8 +27,27 @@
 """
     Service Bot
     ~~~~~~~~~~~
-
     Bot for statistics
+
+    Data format:
+
+        "stat_msg-{yyyy}-{mm}-{dd}.js"
+
+            'S' - Sender type
+            'M' - Message type
+            'N' - Number
+
+        "stat_online-{yyyy}-{mm}-{dd}.js"
+
+            'S' - Sender type
+            'A' - Active flag: 1 = online, 0 = offline
+            'N' - Number
+
+    Sender type:
+        https://github.com/dimchat/mkm-py/blob/master/mkm/protocol/network.py
+
+    Message type:
+        https://github.com/dimchat/dkd-py/blob/master/dkd/protocol/types.py
 """
 
 from typing import Optional, Union, List
@@ -47,7 +66,14 @@ path = Path.dir(path=path)
 path = Path.dir(path=path)
 Path.add(path=path)
 
-from bots.shared import start_bot
+from bots.shared import GlobalVariable, start_bot
+
+
+def get_config(option: str) -> Optional[str]:
+    """ get option value from 'monitor' section in 'config.ini' """
+    shared = GlobalVariable()
+    config = shared.config
+    return config.get_string(section='monitor', option=option)
 
 
 def get_name(identifier: ID, facebook: CommonFacebook) -> str:
