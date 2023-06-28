@@ -2,7 +2,7 @@
 # ==============================================================================
 # MIT License
 #
-# Copyright (c) 2021 Albert Moky
+# Copyright (c) 2019 Albert Moky
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,18 +24,22 @@
 # ==============================================================================
 
 """
-    Database module
-    ~~~~~~~~~~~~~~~
+    Client Module
+    ~~~~~~~~~~~~~
 
-    Redis Client
 """
 
-from .meta import MetaCache
-from .document import DocumentCache
+from dimples.client import ClientMessageProcessor as ClientProcessor
+
+from .packer import ClientPacker
+from .emitter import Emitter
+from .checkpoint import Checkpoint
 
 
 __all__ = [
 
-    'MetaCache',
-    'DocumentCache',
+    'ClientProcessor',
+    'ClientPacker',
+    'Emitter',
+    'Checkpoint',
 ]

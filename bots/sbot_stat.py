@@ -53,10 +53,9 @@
 from typing import Optional, Union, List
 
 from dimples import ID, ReliableMessage
-from dimples import ContentType, Content, TextContent
+from dimples import ContentType, Content, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
-from dimples import BaseContentProcessor
-from dimples import CommonFacebook
+from dimples import CustomizedContentProcessor
 from dimples.utils import Path, Log, Logging
 from dimples.client import ClientMessageProcessor
 from dimples.client import ClientContentProcessorCreator
@@ -66,40 +65,42 @@ path = Path.dir(path=path)
 path = Path.dir(path=path)
 Path.add(path=path)
 
-from bots.shared import GlobalVariable, start_bot
+from libs.client import Checkpoint
+from bots.shared import start_bot
 
 
-def get_config(option: str) -> Optional[str]:
-    """ get option value from 'monitor' section in 'config.ini' """
-    shared = GlobalVariable()
-    config = shared.config
-    return config.get_string(section='monitor', option=option)
+g_checkpoint = Checkpoint()
 
 
-def get_name(identifier: ID, facebook: CommonFacebook) -> str:
-    doc = facebook.document(identifier=identifier)
-    if doc is not None:
-        name = doc.name
-        if name is not None and len(name) > 0:
-            return name
-    name = identifier.name
-    if name is not None and len(name) > 0:
-        return name
-    return str(identifier.address)
-
-
-class BotTextContentProcessor(BaseContentProcessor, Logging):
+class BotStatContentProcessor(CustomizedContentProcessor, Logging):
 
     # Override
     def process(self, content: Content, msg: ReliableMessage) -> List[Content]:
-        assert isinstance(content, TextContent), 'text content error: %s' % content
-        sender = msg.sender
-        facebook = self.facebook
-        assert isinstance(facebook, CommonFacebook), 'facebook error: %s' % facebook
-        nickname = get_name(identifier=sender, facebook=facebook)
-        text = content.text
-        self.debug(msg='received text message from %s: %s' % (nickname, text))
-        # TODO: parse text for your business
+        assert isinstance(content, CustomizedContent), 'stat content error: %s' % content
+        app = content.application
+        mod = content.module
+        act = content.action
+        if g_checkpoint.duplicated(msg=msg):
+            self.warning(msg='duplicated content: %s, %s, %s' % (app, mod, act))
+            return []
+        self.debug(msg='received content: %s, %s, %s' % (app, mod, act))
+        return super().process(content=content, msg=msg)
+
+    # Override
+    def _filter(self, app: str, content: CustomizedContent, msg: ReliableMessage) -> Optional[List[Content]]:
+        if app == 'chat.dim.monitor':
+            return None
+        return super()._filter(app=app, content=content, msg=msg)
+
+    # Override
+    def handle_action(self, act: str, sender: ID, content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
+        mod = content.module
+        if mod == 'users':
+            users = content.get('users')
+            self.info(msg='receive log [users]: %s' % users)
+        elif mod == 'stats':
+            stats = content.get('stats')
+            self.info(msg='receive log [stats]: %s' % stats)
         return []
 
 
@@ -107,9 +108,9 @@ class BotContentProcessorCreator(ClientContentProcessorCreator):
 
     # Override
     def create_content_processor(self, msg_type: Union[int, ContentType]) -> Optional[ContentProcessor]:
-        # text
-        if msg_type == ContentType.TEXT:
-            return BotTextContentProcessor(facebook=self.facebook, messenger=self.messenger)
+        # application customized
+        if msg_type == ContentType.CUSTOMIZED.value:
+            return BotStatContentProcessor(facebook=self.facebook, messenger=self.messenger)
         # others
         return super().create_content_processor(msg_type=msg_type)
 

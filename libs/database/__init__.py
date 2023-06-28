@@ -55,7 +55,6 @@ __all__ = [
     #
     'MetaCache',
     'DocumentCache',
-    'GroupCache',
 
     #
     #   Database

@@ -26,6 +26,7 @@
 import getopt
 import sys
 import threading
+import time
 from typing import Optional
 
 from dimples import ID
@@ -36,11 +37,12 @@ from dimples import Config
 from dimples.common import ProviderInfo
 from dimples.database import Storage
 from dimples.client import ClientSession, ClientMessenger
-from dimples.client import ClientMessageProcessor, ClientMessagePacker
 from dimples.client import Terminal
 
 from libs.utils import Singleton
 from libs.database import Database
+from libs.client import ClientPacker, ClientProcessor
+from libs.client import Emitter
 
 
 @Singleton
@@ -146,7 +148,17 @@ def create_facebook(database: AccountDBI, current_user: ID) -> CommonFacebook:
     assert sign_key is not None, 'failed to get sign key for current user: %s' % current_user
     assert msg_keys is not None and len(msg_keys) > 0, 'failed to get msg keys: %s' % current_user
     print('set current user: %s' % current_user)
-    facebook.current_user = facebook.user(identifier=current_user)
+    user = facebook.user(identifier=current_user)
+    assert user is not None, 'failed to get current user: %s' % current_user
+    visa = user.visa
+    if visa is not None:
+        # refresh visa
+        now = time.time()
+        visa.set_property(key='time', value=now)
+        if visa.sign(private_key=sign_key) is not None:
+            if facebook.save_document(document=visa):
+                print('visa refreshed: %s' % current_user)
+    facebook.current_user = user
     return facebook
 
 
@@ -164,12 +176,12 @@ def create_session(facebook: CommonFacebook, database: SessionDBI, host: str, po
 
 def create_messenger(facebook: CommonFacebook, database: MessageDBI,
                      session: ClientSession, processor_class) -> ClientMessenger:
-    assert issubclass(processor_class, ClientMessageProcessor), 'processor class error: %s' % processor_class
+    assert issubclass(processor_class, ClientProcessor), 'processor class error: %s' % processor_class
     # 1. create messenger with session and MessageDB
     messenger = ClientMessenger(session=session, facebook=facebook, database=database)
     # 2. create packer, processor for messenger
     #    they have weak references to facebook & messenger
-    messenger.packer = ClientMessagePacker(facebook=facebook, messenger=messenger)
+    messenger.packer = ClientPacker(facebook=facebook, messenger=messenger)
     messenger.processor = processor_class(facebook=facebook, messenger=messenger)
     # 3. set weak reference to messenger
     session.messenger = messenger
@@ -221,6 +233,9 @@ def start_bot(default_config: str, app_name: str, ans_name: str, processor_class
     port = config.station_port
     session = create_session(facebook=facebook, database=db, host=host, port=port)
     messenger = create_messenger(facebook=facebook, database=db, session=session, processor_class=processor_class)
+    # set messenger to emitter
+    emitter = Emitter()
+    emitter.messenger = messenger
     # create & start terminal
     terminal = Terminal(messenger=messenger)
     thread = threading.Thread(target=terminal.run, daemon=False)

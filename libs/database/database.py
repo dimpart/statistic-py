@@ -44,7 +44,6 @@ from dimples.database.t_cipherkey import CipherKeyTable
 # from .t_ans import AddressNameTable
 from .t_meta import MetaTable
 from .t_document import DocumentTable
-from .t_group import GroupTable
 
 
 class Database(AccountDBI, MessageDBI, SessionDBI):
@@ -57,7 +56,6 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         self.__private_table = PrivateKeyTable(root=root, public=public, private=private)
         self.__meta_table = MetaTable(root=root, public=public, private=private)
         self.__document_table = DocumentTable(root=root, public=public, private=private)
-        self.__group_table = GroupTable(root=root, public=public, private=private)
         self.__msg_key_table = CipherKeyTable(root=root, public=public, private=private)
         # # ANS
         # self.__ans_table = AddressNameTable(root=root, public=public, private=private)
@@ -67,7 +65,6 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         self.__private_table.show_info()
         self.__meta_table.show_info()
         self.__document_table.show_info()
-        self.__group_table.show_info()
         self.__msg_key_table.show_info()
         # # ANS
         # self.__ans_table.show_info()
@@ -230,39 +227,39 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     def founder(self, group: ID) -> Optional[ID]:
-        return self.__group_table.founder(group=group)
+        return None
 
     # Override
     def owner(self, group: ID) -> Optional[ID]:
-        return self.__group_table.owner(group=group)
+        return None
 
     # Override
     def members(self, group: ID) -> List[ID]:
-        return self.__group_table.members(group=group)
+        return []
 
     # Override
     def save_members(self, members: List[ID], group: ID) -> bool:
-        return self.__group_table.save_members(members=members, group=group)
+        return True
 
     # Override
     def add_member(self, member: ID, group: ID) -> bool:
-        return self.__group_table.add_member(member=member, group=group)
+        return True
 
     # Override
     def remove_member(self, member: ID, group: ID) -> bool:
-        return self.__group_table.remove_member(member=member, group=group)
+        return True
 
     # Override
     def remove_group(self, group: ID) -> bool:
-        return self.__group_table.remove_group(group=group)
+        return True
 
     # Override
     def assistants(self, group: ID) -> List[ID]:
-        return self.__group_table.assistants(group=group)
+        return []
 
     # Override
     def save_assistants(self, assistants: List[ID], group: ID) -> bool:
-        return self.__group_table.save_assistants(assistants=assistants, group=group)
+        return True
 
     """
         Reliable message for Receivers
