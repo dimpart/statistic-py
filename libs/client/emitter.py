@@ -178,13 +178,6 @@ class Emitter(Logging):
 #
 
 
-def cache_file_data(data: bytes, filename: str) -> int:
-    # TODO: save file data
-    size = len(data)
-    Log.info(msg='save file: %s, length: %d' % (filename, size))
-    return size
-
-
 def filename_from_data(data: bytes, filename: str) -> str:
     pos = filename.rfind('.')
     if pos < 0:
@@ -195,6 +188,13 @@ def filename_from_data(data: bytes, filename: str) -> str:
     if len(filename) != 32:
         filename = hex_encode(data=md5(data=data))
     return '%s.%s' % (filename, ext)
+
+
+def cache_file_data(data: bytes, filename: str) -> int:
+    # TODO: save file data
+    size = len(data)
+    Log.info(msg='save file: %s, length: %d' % (filename, size))
+    return size
 
 
 def upload_encrypted_data(data: bytes, filename: str, sender: ID) -> Optional[str]:

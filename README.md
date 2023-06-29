@@ -6,11 +6,11 @@
 
 ```
 cd GitHub/
-mkdir dimgame; cd dimgame/
+mkdir dimpart; cd dimpart/
 
-git clone https://github.com/dimgame/statistic-py.git
+git clone https://github.com/dimpart/monitor-py.git
 
-cd statistic-py/
+cd monitor-py/
 
 pip3 install -r requirements.txt
 ```
@@ -46,7 +46,7 @@ optional arguments:
 Input command ```dimid --config=etc/config.ini generate``` and it would response:
 
 ```
-[DB] init with config: etc/config.ini => {'database': {'public': '/var/dim/public', 'private': '/var/dim/private'}, 'station': {'host': '106.52.25.169', 'port': '9394'}, 'ans': {'statistic': ''}, 'monitor': {'online_stat': '/var/dim/protected/stat_online-{yyyy}-{mm}-{dd}.js', 'msg_stat': '/var/dim/protected/stat_msg-{yyyy}-{mm}-{dd}.js'}}
+[DB] init with config: etc/config.ini => {'database': {'public': '/var/dim/public', 'private': '/var/dim/private'}, 'station': {'host': '106.52.25.169', 'port': '9394'}, 'ans': {'statistic': ''}}
 !!!    id key path: /var/dim/private/{ADDRESS}/secret.js
 !!!  msg keys path: /var/dim/private/{ADDRESS}/secret_keys.js
 !!!      meta path: /var/dim/public/{ADDRESS}/meta.js
@@ -121,10 +121,6 @@ port = 9394
 
 [ans]
 statistic = stat@31PyFapLXhUiThUTa6Y2T5uaxWCRvLtaAg
-
-[monitor]
-online_stat = /var/dim/protected/stat_online-{yyyy}-{mm}-{dd}.js
-msg_stat    = /var/dim/protected/stat_msg-{yyyy}-{mm}-{dd}.js
 ```
 
 1.3. Start your programming

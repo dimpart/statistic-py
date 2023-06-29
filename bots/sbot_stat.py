@@ -31,17 +31,29 @@
 
     Data format:
 
-        "stat_msg-{yyyy}-{mm}-{dd}.js"
+        "users_log-{yyyy}-{mm}-{dd}.js"
 
-            'S' - Sender type
-            'M' - Message type
-            'N' - Number
+            {
+                "yyyy-mm-dd HH:MM": [
+                    "ID1",
+                    "ID2"
+                ]
+            }
 
-        "stat_online-{yyyy}-{mm}-{dd}.js"
+        "stats_log-{yyyy}-{mm}-{dd}.js"
 
-            'S' - Sender type
-            'A' - Active flag: 1 = online, 0 = offline
-            'N' - Number
+            {
+                "yyyy-mm-dd HH:MM": {
+                    "S": 0,
+                    "T": 1,
+                    "N": 2
+                }
+            }
+
+    Fields:
+        'S' - Sender type
+        'T' - Message type
+        'N' - Number
 
     Sender type:
         https://github.com/dimchat/mkm-py/blob/master/mkm/protocol/network.py
@@ -53,9 +65,12 @@
 from typing import Optional, Union, List
 
 from dimples import ID, ReliableMessage
-from dimples import ContentType, Content, CustomizedContent
+from dimples import ContentType, Content
+from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
+from dimples import BaseContentProcessor
 from dimples import CustomizedContentProcessor
+from dimples import Facebook
 from dimples.utils import Path, Log, Logging
 from dimples.client import ClientMessageProcessor
 from dimples.client import ClientContentProcessorCreator
@@ -72,7 +87,37 @@ from bots.shared import start_bot
 g_checkpoint = Checkpoint()
 
 
-class BotStatContentProcessor(CustomizedContentProcessor, Logging):
+def get_name(identifier: ID, facebook: Facebook) -> str:
+    doc = facebook.document(identifier=identifier)
+    if doc is not None:
+        name = doc.name
+        if name is not None and len(name) > 0:
+            return name
+    name = identifier.name
+    if name is not None and len(name) > 0:
+        return name
+    return str(identifier.address)
+
+
+class TextContentProcessor(BaseContentProcessor, Logging):
+    """ Process text message content """
+
+    # Override
+    def process(self, content: Content, msg: ReliableMessage) -> List[Content]:
+        assert isinstance(content, TextContent), 'text content error: %s' % content
+        text = content.text
+        sender = msg.sender
+        if g_checkpoint.duplicated(msg=msg):
+            self.warning(msg='duplicated content from %s: %s' % (sender, text))
+            return []
+        nickname = get_name(identifier=sender, facebook=self.facebook)
+        self.info(msg='received text message from %s: "%s"' % (nickname, text))
+        # TODO: parse text for your business
+        return []
+
+
+class StatContentProcessor(CustomizedContentProcessor, Logging):
+    """ Process customized stat content """
 
     # Override
     def process(self, content: Content, msg: ReliableMessage) -> List[Content]:
@@ -80,16 +125,19 @@ class BotStatContentProcessor(CustomizedContentProcessor, Logging):
         app = content.application
         mod = content.module
         act = content.action
+        sender = msg.sender
         if g_checkpoint.duplicated(msg=msg):
-            self.warning(msg='duplicated content: %s, %s, %s' % (app, mod, act))
+            self.warning(msg='duplicated content from %s: %s, %s, %s' % (sender, app, mod, act))
             return []
-        self.debug(msg='received content: %s, %s, %s' % (app, mod, act))
+        self.debug(msg='received content from %s: %s, %s, %s' % (sender, app, mod, act))
         return super().process(content=content, msg=msg)
 
     # Override
     def _filter(self, app: str, content: CustomizedContent, msg: ReliableMessage) -> Optional[List[Content]]:
         if app == 'chat.dim.monitor':
+            # app ID matched
             return None
+        # unknown app ID
         return super()._filter(app=app, content=content, msg=msg)
 
     # Override
@@ -97,10 +145,15 @@ class BotStatContentProcessor(CustomizedContentProcessor, Logging):
         mod = content.module
         if mod == 'users':
             users = content.get('users')
-            self.info(msg='receive log [users]: %s' % users)
+            self.info(msg='received station log [users]: %s' % users)
+            # TODO: save login users
         elif mod == 'stats':
             stats = content.get('stats')
-            self.info(msg='receive log [stats]: %s' % stats)
+            self.info(msg='received station log [stats]: %s' % stats)
+            # TODO: save message stats
+        else:
+            self.error(msg='unknown module: %s, action: %s' % (mod, act))
+        # respond nothing
         return []
 
 
@@ -108,9 +161,12 @@ class BotContentProcessorCreator(ClientContentProcessorCreator):
 
     # Override
     def create_content_processor(self, msg_type: Union[int, ContentType]) -> Optional[ContentProcessor]:
+        # text
+        if msg_type == ContentType.TEXT:
+            return TextContentProcessor(facebook=self.facebook, messenger=self.messenger)
         # application customized
-        if msg_type == ContentType.CUSTOMIZED.value:
-            return BotStatContentProcessor(facebook=self.facebook, messenger=self.messenger)
+        if msg_type == ContentType.CUSTOMIZED:
+            return StatContentProcessor(facebook=self.facebook, messenger=self.messenger)
         # others
         return super().create_content_processor(msg_type=msg_type)
 
@@ -128,7 +184,7 @@ class BotMessageProcessor(ClientMessageProcessor):
 Log.LEVEL = Log.DEVELOP
 
 
-DEFAULT_CONFIG = '/etc/dim/config.ini'
+DEFAULT_CONFIG = '/etc/dim_bots/config.ini'
 
 
 if __name__ == '__main__':

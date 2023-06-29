@@ -46,11 +46,9 @@ class ClientPacker(ClientMessagePacker):
                 receiver = msg.receiver
                 messenger = self.messenger
                 key = messenger.cipher_key(sender=sender, receiver=receiver, generate=True)
-                if key is None:
-                    assert False, 'failed to get msg key for: %s -> %s' % (sender, receiver)
-                else:
-                    # call emitter to encrypt & upload file data before send out
-                    send_file_message(msg=msg, password=key)
+                assert key is not None, 'failed to get msg key for: %s -> %s' % (sender, receiver)
+                # call emitter to encrypt & upload file data before send out
+                send_file_message(msg=msg, password=key)
                 return None
         try:
             s_msg = super().encrypt_message(msg=msg)
