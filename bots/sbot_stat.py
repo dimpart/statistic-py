@@ -135,6 +135,18 @@ def parse_time(msg_time: float) -> Tuple[str, str, str, str, str]:
     return year, month, day, hours, minutes
 
 
+def math_stat(array: List[float]) -> Tuple[str, int]:
+    count = len(array)
+    if count < 3:
+        return str(array), count
+    Log.info(msg='array (%d): %s' % (count, array))
+    array = sorted(array)
+    right = array.pop()
+    left = array.pop(0)
+    mean = sum(array) / len(array)
+    return '%f ... [%f] ... %f' % (left, mean, right), count
+
+
 @Singleton
 class StatRecorder(Runner, Logging):
 
@@ -191,7 +203,7 @@ class StatRecorder(Runner, Logging):
             array.append(item)
         return Storage.write_json(container=container, path=log_path)
 
-    def _save_speeds(self, msg_time: float, provider: str, stations: List[Dict], client: str):
+    def _save_speeds(self, msg_time: float, sender: str, provider: str, stations: List[Dict], client: str):
         log_path = self._get_path(msg_time=msg_time, option='speeds_log')
         container = Storage.read_json(path=log_path)
         if container is None:
@@ -208,6 +220,7 @@ class StatRecorder(Runner, Logging):
             port = srv.get('port')
             response_time = srv.get('response_time')
             item = {
+                'U': sender,
                 'provider': provider,
                 'station': '%s:%d' % (host, port),
                 'client': client,
@@ -216,6 +229,59 @@ class StatRecorder(Runner, Logging):
             }
             array.append(item)
         return Storage.write_json(container=container, path=log_path)
+
+    def get_speeds(self, now: float) -> List[Dict]:
+        log_path = self._get_path(msg_time=now, option='speeds_log')
+        container = Storage.read_json(path=log_path)
+        if container is None:
+            return []
+        speeds: List[Dict] = []
+        for tag in container:
+            array: List[Dict] = container.get(tag)
+            if array is None or len(array) == 0:
+                continue
+            for item in array:
+                sender = item.get('U')
+                provider = item.get('provider')
+                station = item.get('station')
+                client = item.get('client')
+                response_time = item.get('response_time')
+                if response_time is None or response_time <= 0:
+                    self.error(msg='speed item error: %s' % item)
+                    continue
+                if isinstance(client, str):
+                    client = client.split(':')[0]
+                elif isinstance(client, List):
+                    client = client[0]
+                # seek speed result
+                result: Dict = None
+                for res in speeds:
+                    if res.get('station') != station or res.get('client_ip') != client:
+                        continue
+                    pid = res.get('provider')
+                    if pid is not None and pid != provider:
+                        continue
+                    uid = res.get('sender')
+                    if uid is not None and uid != sender:
+                        continue
+                    # got it
+                    result = res
+                    break
+                if result is None:
+                    result = {
+                        'station': station,
+                        'client_ip': client,
+                        'rt': []
+                    }
+                    speeds.append(result)
+                if sender is not None:
+                    result['sender'] = sender
+                if provider is not None:
+                    result['provider'] = provider
+                # response times
+                rt = result['rt']
+                rt.append(response_time)
+        return speeds
 
     # Override
     def process(self) -> bool:
@@ -237,13 +303,14 @@ class StatRecorder(Runner, Logging):
                 stats = content.get('stats')
                 self._save_stats(msg_time=msg_time, stats=stats)
             elif mod == 'speeds':
+                sender = content.get('sender')
                 provider = content.get('provider')
                 stations = content.get('stations')
                 client = content.get('remote_address')
                 if isinstance(client, List):  # or isinstance(client, Tuple):
                     assert len(client) == 2, 'socket address error: %s' % client
                     client = '%s:%d' % (client[0], client[1])
-                self._save_speeds(msg_time=msg_time, provider=provider, stations=stations, client=client)
+                self._save_speeds(msg_time=msg_time, sender=sender, provider=provider, stations=stations, client=client)
             else:
                 self.warning(msg='ignore mod: %s, %s' % (mod, content))
         except Exception as e:
@@ -259,6 +326,30 @@ class StatRecorder(Runner, Logging):
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
 
+    def __get_speeds(self, day: str) -> str:
+        day = day.strip()
+        if len(day) == 0:
+            now = time.time()
+            day = time.strftime('%Y-%m-%d', time.localtime(now))
+        else:
+            try:
+                now = time.mktime(time.strptime(day, '%Y-%m-%d'))
+            except ValueError as e:
+                text = 'error date: %s, %s' % (day, e)
+                self.error(msg=text)
+                return text
+        text = ''
+        speeds = g_recorder.get_speeds(now=now)
+        self.info(msg='speeds: %s' % str(speeds))
+        for item in speeds:
+            sender = item.get('sender')
+            ip = item.get('client_ip')
+            rt = item.get('rt')
+            rt, c = math_stat(array=rt)
+            text += 'User : %s,\nIP   : %s,\nTimes: %s,\nCount: %d;\n\n' % (sender, ip, rt, c)
+        text += 'Total: %d, Date: %s' % (len(speeds), day)
+        return text
+
     # Override
     def process(self, content: Content, msg: ReliableMessage) -> List[Content]:
         assert isinstance(content, TextContent), 'text content error: %s' % content
@@ -270,6 +361,16 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         nickname = get_name(identifier=sender, facebook=self.facebook)
         self.info(msg='received text message from %s: "%s"' % (nickname, text))
         # TODO: parse text for your business
+        text = content.text
+        if text.startswith('speeds'):
+            # query speeds
+            array = text.split(' ')
+            if len(array) == 1:
+                day = ''
+            else:
+                day = array[1]
+            text = self.__get_speeds(day=day)
+            return [TextContent.create(text=text)]
         return []
 
 
@@ -310,10 +411,11 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
             self.info(msg='received station log [stats]: %s' % stats)
             recorder.add_log(content=content)
         elif mod == 'speeds':
+            user = content.get('sender')
             provider = content.get('provider')
             stations = content.get('stations')
             remote_address = content.get('remote_address')
-            self.info(msg='received client log [speeds]: %s => %s, %s' % (remote_address, provider, stations))
+            self.info(msg='received client log [speeds]: %s, %s => %s, %s' % (user, remote_address, provider, stations))
             recorder.add_log(content=content)
         else:
             self.error(msg='unknown module: %s, action: %s, %s' % (mod, act, content))
