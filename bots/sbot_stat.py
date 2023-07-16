@@ -35,8 +35,10 @@
 
             {
                 "yyyy-mm-dd HH:MM": [
-                    "ID1",
-                    "ID2"
+                    {
+                        "U" : "user_id",
+                        "IP": "127.0.0.1"
+                    }
                 ]
             }
 
@@ -57,6 +59,7 @@
             {
                 "yyyy-mm-dd HH:MM": [
                     {
+                        "U"            : "user_id",
                         "provider"     : "provider_id",
                         "station"      : "host:port",
                         "client"       : "host:port",
@@ -68,7 +71,7 @@
     Fields:
         'S' - Sender type
         'C' - Counter
-        'U' - User ID (reserved)
+        'U' - User ID
         'T' - message Type
 
     Sender type:
@@ -101,7 +104,6 @@ path = Path.dir(path=path)
 path = Path.dir(path=path)
 Path.add(path=path)
 
-from libs.client import Checkpoint
 from bots.shared import GlobalVariable, start_bot
 
 
@@ -171,7 +173,7 @@ class StatRecorder(Runner, Logging):
             if len(self.__contents) > 0:
                 return self.__contents.pop(0)
 
-    def _save_users(self, msg_time: float, users: List[str]):
+    def _save_users(self, msg_time: float, users: List[Dict]):
         log_path = self._get_path(msg_time=msg_time, option='users_log')
         container = Storage.read_json(path=log_path)
         if container is None:
@@ -180,11 +182,15 @@ class StatRecorder(Runner, Logging):
         log_tag = '%s-%s-%s %s:%s' % (year, month, day, hours, minutes)
         array = container.get(log_tag)
         if array is None:
-            array = []
-            container[log_tag] = array
+            array = set()
+        else:
+            assert isinstance(array, List), 'records error: %s' % array
+            array = set(array)
         # append users
         for item in users:
-            array.append(item)
+            array.add(item)
+        # update
+        container[log_tag] = list(array)
         return Storage.write_json(container=container, path=log_path)
 
     def _save_stats(self, msg_time: float, stats: List[Dict]):
@@ -355,9 +361,6 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
         sender = msg.sender
-        if g_checkpoint.duplicated(msg=msg):
-            self.warning(msg='duplicated content from %s: %s' % (sender, text))
-            return []
         nickname = get_name(identifier=sender, facebook=self.facebook)
         self.info(msg='received text message from %s: "%s"' % (nickname, text))
         # TODO: parse text for your business
@@ -384,9 +387,6 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
         mod = content.module
         act = content.action
         sender = msg.sender
-        if g_checkpoint.duplicated(msg=msg):
-            self.warning(msg='duplicated content from %s: %s, %s, %s' % (sender, app, mod, act))
-            return []
         self.debug(msg='received content from %s: %s, %s, %s' % (sender, app, mod, act))
         return super().process(content=content, msg=msg)
 
@@ -444,7 +444,6 @@ class BotMessageProcessor(ClientMessageProcessor):
         return BotContentProcessorCreator(facebook=self.facebook, messenger=self.messenger)
 
 
-g_checkpoint = Checkpoint()
 g_recorder = StatRecorder()
 
 

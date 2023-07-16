@@ -33,7 +33,6 @@ from dimples.client import ClientMessageProcessor as ClientProcessor
 
 from .packer import ClientPacker
 from .emitter import Emitter
-from .checkpoint import Checkpoint
 
 
 __all__ = [
@@ -41,5 +40,5 @@ __all__ = [
     'ClientProcessor',
     'ClientPacker',
     'Emitter',
-    'Checkpoint',
+
 ]

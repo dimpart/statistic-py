@@ -8,9 +8,9 @@
 cd GitHub/
 mkdir dimpart; cd dimpart/
 
-git clone https://github.com/dimpart/monitor-py.git
+git clone https://github.com/dimpart/statistic-py.git
 
-cd monitor-py/
+cd statistic-py/
 
 pip3 install -r requirements.txt
 ```
