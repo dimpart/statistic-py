@@ -83,7 +83,7 @@
 
 import threading
 import time
-from typing import Optional, Union, Tuple, List, Dict
+from typing import Optional, Union, Tuple, Set, List, Dict
 
 from dimples import ID, ReliableMessage
 from dimples import ContentType, Content
@@ -175,27 +175,72 @@ class StatRecorder(Runner, Logging):
 
     def _save_users(self, msg_time: float, users: List[Dict]):
         log_path = self._get_path(msg_time=msg_time, option='users_log')
-        container = Storage.read_json(path=log_path)
+        container: Dict = Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
         log_tag = '%s-%s-%s %s:%s' % (year, month, day, hours, minutes)
-        array = container.get(log_tag)
-        if array is None:
-            array = set()
-        else:
-            assert isinstance(array, List), 'records error: %s' % array
-            array = set(array)
-        # append users
+        array: List[Dict] = container.get(log_tag)
+        # convert List to Set
+        records: Set[Tuple[str, Optional[str]]] = set()
+        if array is not None:
+            for item in array:
+                if isinstance(item, Dict):
+                    uid = item.get('U')
+                    ips = item.get('IP')  # List[str]
+                    if isinstance(ips, List):
+                        ips = set(ips)
+                    else:
+                        assert isinstance(ips, str), 'IP error: %s' % ips
+                        tmp = set()
+                        tmp.add(ips)
+                        ips = tmp
+                else:
+                    assert isinstance(item, str), 'old user item error: %s' % item
+                    uid = item
+                    ips = set()
+                if len(ips) == 0:
+                    records.add((uid, None))
+                else:
+                    for ip in ips:
+                        records.add((uid, ip))
+        # add new users
         for item in users:
-            array.add(item)
-        # update
-        container[log_tag] = list(array)
+            if isinstance(item, Dict):
+                uid = item.get('U')
+                ip = item.get('IP')  # str
+            else:
+                assert isinstance(item, str), 'new user item error: %s' % item
+                uid = item
+                ip = None
+            records.add((uid, ip))
+        # convert Set to Dict
+        table: Dict[str, Set[str]] = {}
+        for item in records:
+            uid = item[0]
+            ips = table.get(uid)
+            if ips is None:
+                ips = set()
+                table[uid] = ips
+            ip = item[1]
+            if ip is not None:
+                ips.add(ip)
+        # convert Dict to List
+        array = []
+        for uid in table:
+            ips = table[uid]
+            assert isinstance(ips, Set), 'table error: %s => %s' % (uid, ips)
+            array.append({
+                'U': uid,
+                'IP': list(ips)
+            })
+        container[log_tag] = array
+        # update log file
         return Storage.write_json(container=container, path=log_path)
 
     def _save_stats(self, msg_time: float, stats: List[Dict]):
         log_path = self._get_path(msg_time=msg_time, option='stats_log')
-        container = Storage.read_json(path=log_path)
+        container: Dict = Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
@@ -207,11 +252,12 @@ class StatRecorder(Runner, Logging):
         # append records
         for item in stats:
             array.append(item)
+        # update log file
         return Storage.write_json(container=container, path=log_path)
 
     def _save_speeds(self, msg_time: float, sender: str, provider: str, stations: List[Dict], client: str):
         log_path = self._get_path(msg_time=msg_time, option='speeds_log')
-        container = Storage.read_json(path=log_path)
+        container: Dict = Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
@@ -234,7 +280,52 @@ class StatRecorder(Runner, Logging):
 
             }
             array.append(item)
+        # update log file
         return Storage.write_json(container=container, path=log_path)
+
+    def get_users(self, now: float) -> List[Dict]:
+        log_path = self._get_path(msg_time=now, option='users_log')
+        container = Storage.read_json(path=log_path)
+        if container is None:
+            return []
+        users: List[Dict] = []
+        for tag in container:
+            array: List[Dict] = container.get(tag)
+            if array is None or len(array) == 0:
+                continue
+            for item in array:
+                if isinstance(item, Dict):
+                    user_id = item.get('U')
+                    ip_list = item.get('IP')  # List[str]
+                else:
+                    assert isinstance(item, str), 'user item error: %s' % item
+                    user_id = item
+                    ip_list = None
+                if user_id is None:  # or not isinstance(user_id, str):
+                    self.error('user item error: %s' % item)
+                    continue
+                # seek user result
+                result: Dict = None
+                for res in users:
+                    if res.get('U') == user_id:
+                        # got it
+                        result = res
+                        break
+                if result is None:
+                    result = {
+                        'U': user_id,
+                        'IP': set(),
+                    }
+                    users.append(result)
+                # client ip
+                if isinstance(ip_list, List):
+                    ips: Set = result['IP']
+                    for ip in ip_list:
+                        ips.add(ip)
+                elif isinstance(ip_list, str):
+                    ips: Set = result['IP']
+                    ips.add(ip_list)
+        return users
 
     def get_speeds(self, now: float) -> List[Dict]:
         log_path = self._get_path(msg_time=now, option='speeds_log')
@@ -332,6 +423,30 @@ class StatRecorder(Runner, Logging):
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
 
+    def __get_users(self, day: str) -> str:
+        day = day.strip()
+        if len(day) == 0:
+            now = time.time()
+            day = time.strftime('%Y-%m-%d', time.localtime(now))
+        else:
+            try:
+                now = time.mktime(time.strptime(day, '%Y-%m-%d'))
+            except ValueError as e:
+                text = 'error date: %s, %s' % (day, e)
+                self.error(msg=text)
+                return text
+        text = ''
+        users = g_recorder.get_users(now=now)
+        self.info(msg='users: %s' % str(users))
+        for item in users:
+            sender = item.get('U')
+            ip = item.get('IP')
+            if isinstance(ip, Set):
+                ip = list(ip)
+            text += 'User : %s,\nIP   : %s;\n\n' % (sender, ip)
+        text += 'Total: %d, Date: %s' % (len(users), day)
+        return text
+
     def __get_speeds(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
@@ -365,6 +480,15 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         self.info(msg='received text message from %s: "%s"' % (nickname, text))
         # TODO: parse text for your business
         text = content.text
+        if text.startswith('users'):
+            # query users
+            array = text.split(' ')
+            if len(array) == 1:
+                day = ''
+            else:
+                day = array[1]
+            text = self.__get_users(day=day)
+            return [TextContent.create(text=text)]
         if text.startswith('speeds'):
             # query speeds
             array = text.split(' ')
