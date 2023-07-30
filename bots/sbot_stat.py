@@ -85,13 +85,13 @@ import threading
 import time
 from typing import Optional, Union, Tuple, Set, List, Dict
 
-from dimples import ID, ReliableMessage
+from dimples import ID, Document, ReliableMessage
 from dimples import ContentType, Content
 from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
 from dimples import BaseContentProcessor
 from dimples import CustomizedContentProcessor
-from dimples import Facebook
+from dimples import CommonFacebook, CommonMessenger
 from dimples import Config
 from dimples.utils import Singleton, Log, Logging
 from dimples.utils import Path, Runner
@@ -107,8 +107,16 @@ Path.add(path=path)
 from bots.shared import GlobalVariable, start_bot
 
 
-def get_name(identifier: ID, facebook: Facebook) -> str:
+def get_doc(identifier: ID, facebook: CommonFacebook, messenger: CommonMessenger) -> Optional[Document]:
     doc = facebook.document(identifier=identifier)
+    if doc is None:
+        messenger.query_document(identifier=identifier)
+    else:
+        return doc
+
+
+def get_name(identifier: ID, facebook: CommonFacebook, messenger: CommonMessenger) -> str:
+    doc = get_doc(identifier=identifier, facebook=facebook, messenger=messenger)
     if doc is not None:
         name = doc.name
         if name is not None and len(name) > 0:
@@ -358,7 +366,7 @@ class StatRecorder(Runner, Logging):
                     pid = res.get('provider')
                     if pid is not None and pid != provider:
                         continue
-                    uid = res.get('sender')
+                    uid = res.get('U')
                     if uid is not None and uid != sender:
                         continue
                     # got it
@@ -372,7 +380,7 @@ class StatRecorder(Runner, Logging):
                     }
                     speeds.append(result)
                 if sender is not None:
-                    result['sender'] = sender
+                    result['U'] = sender
                 if provider is not None:
                     result['provider'] = provider
                 # response times
@@ -400,7 +408,7 @@ class StatRecorder(Runner, Logging):
                 stats = content.get('stats')
                 self._save_stats(msg_time=msg_time, stats=stats)
             elif mod == 'speeds':
-                sender = content.get('sender')
+                sender = content.get('U')
                 provider = content.get('provider')
                 stations = content.get('stations')
                 client = content.get('remote_address')
@@ -423,6 +431,18 @@ class StatRecorder(Runner, Logging):
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
 
+    def __get_name(self, sender: str) -> str:
+        identifier = ID.parse(identifier=sender)
+        name = None
+        if identifier is not None:
+            doc = get_doc(identifier=identifier, facebook=self.facebook, messenger=self.messenger)
+            if doc is not None:
+                name = doc.name
+        if name is None or len(name) == 0:
+            return sender
+        else:
+            return '%s (%s)' % (sender, name)
+
     def __get_users(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
@@ -443,7 +463,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             ip = item.get('IP')
             if isinstance(ip, Set):
                 ip = list(ip)
-            text += 'User : %s,\nIP   : %s;\n\n' % (sender, ip)
+            name = self.__get_name(sender=sender)
+            text += 'User : %s,\nIP   : %s;\n\n' % (name, ip)
         text += 'Total: %d, Date: %s' % (len(users), day)
         return text
 
@@ -463,11 +484,12 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         speeds = g_recorder.get_speeds(now=now)
         self.info(msg='speeds: %s' % str(speeds))
         for item in speeds:
-            sender = item.get('sender')
+            sender = item.get('U')
             ip = item.get('client_ip')
             rt = item.get('rt')
             rt, c = math_stat(array=rt)
-            text += 'User : %s,\nIP   : %s,\nTimes: %s,\nCount: %d;\n\n' % (sender, ip, rt, c)
+            name = self.__get_name(sender=sender)
+            text += 'User : %s,\nIP   : %s,\nTimes: %s,\nCount: %d;\n\n' % (name, ip, rt, c)
         text += 'Total: %d, Date: %s' % (len(speeds), day)
         return text
 
@@ -476,7 +498,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
         sender = msg.sender
-        nickname = get_name(identifier=sender, facebook=self.facebook)
+        nickname = get_name(identifier=sender, facebook=self.facebook, messenger=self.messenger)
         self.info(msg='received text message from %s: "%s"' % (nickname, text))
         # TODO: parse text for your business
         text = content.text
@@ -526,23 +548,24 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
     def handle_action(self, act: str, sender: ID, content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
         recorder = StatRecorder()
         mod = content.module
+        when = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(content.time))
         if mod == 'users':
             users = content.get('users')
-            self.info(msg='received station log [users]: %s' % users)
+            self.info(msg='received station log [%s] users: %s' % (when, users))
             recorder.add_log(content=content)
         elif mod == 'stats':
             stats = content.get('stats')
-            self.info(msg='received station log [stats]: %s' % stats)
+            self.info(msg='received station log [%s] stats: %s' % (when, stats))
             recorder.add_log(content=content)
         elif mod == 'speeds':
-            user = content.get('sender')
+            user = content.get('U')
             provider = content.get('provider')
             stations = content.get('stations')
-            remote_address = content.get('remote_address')
-            self.info(msg='received client log [speeds]: %s, %s => %s, %s' % (user, remote_address, provider, stations))
+            addr = content.get('remote_address')
+            self.info(msg='received client log [%s] speeds: %s, %s => %s, %s' % (when, user, addr, provider, stations))
             recorder.add_log(content=content)
         else:
-            self.error(msg='unknown module: %s, action: %s, %s' % (mod, act, content))
+            self.error(msg='unknown module: %s, action: %s, [%s] %s' % (mod, act, when, content))
         # respond nothing
         return []
 
