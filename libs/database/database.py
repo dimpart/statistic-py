@@ -29,13 +29,13 @@
 
 """
 
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple, List, Dict
 
 from dimples import SymmetricKey, PrivateKey, SignKey, DecryptKey
 from dimples import ID, Meta, Document
 from dimples import ReliableMessage
 
-from dimples import LoginCommand
+from dimples import LoginCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
 from dimples.common.dbi import ProviderInfo, StationInfo
 from dimples.database.t_private import PrivateKeyTable
@@ -226,39 +226,45 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
     """
 
     # Override
-    def founder(self, group: ID) -> Optional[ID]:
-        return None
-
-    # Override
-    def owner(self, group: ID) -> Optional[ID]:
-        return None
-
-    # Override
     def members(self, group: ID) -> List[ID]:
+        # TODO: get group members
         return []
 
     # Override
     def save_members(self, members: List[ID], group: ID) -> bool:
-        return True
-
-    # Override
-    def add_member(self, member: ID, group: ID) -> bool:
-        return True
-
-    # Override
-    def remove_member(self, member: ID, group: ID) -> bool:
-        return True
-
-    # Override
-    def remove_group(self, group: ID) -> bool:
+        # TODO: save group members
         return True
 
     # Override
     def assistants(self, group: ID) -> List[ID]:
+        # TODO: get group bots
         return []
 
     # Override
     def save_assistants(self, assistants: List[ID], group: ID) -> bool:
+        # TODO: save group bots
+        return True
+
+    # Override
+    def administrators(self, group: ID) -> List[ID]:
+        # TODO: get group administrators
+        return []
+
+    # Override
+    def save_administrators(self, administrators: List[ID], group: ID) -> bool:
+        # TODO: save group administrators
+        return True
+
+    #
+    #   Reset Group DBI
+    #
+
+    def reset_command_message(self, group: ID) -> Tuple[Optional[ResetCommand], Optional[ReliableMessage]]:
+        # TODO: get reset command & message
+        return None, None
+
+    def save_reset_command_message(self, group: ID, content: ResetCommand, msg: ReliableMessage) -> bool:
+        # TODO: save reset command & message
         return True
 
     """
@@ -271,14 +277,17 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     def reliable_messages(self, receiver: ID, limit: int = 1024) -> List[ReliableMessage]:
+        # TODO: get cached reliable messages
         return []
 
     # Override
     def cache_reliable_message(self, msg: ReliableMessage, receiver: ID) -> bool:
+        # TODO: cache reliable messages
         return True
 
     # Override
     def remove_reliable_message(self, msg: ReliableMessage, receiver: ID) -> bool:
+        # TODO: remove sent reliable message
         return True
 
     """
@@ -295,6 +304,16 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
     # Override
     def cache_cipher_key(self, key: SymmetricKey, sender: ID, receiver: ID):
         return self.__msg_key_table.cache_cipher_key(key=key, sender=sender, receiver=receiver)
+
+    # Override
+    def group_keys(self, group: ID, sender: ID) -> Optional[Dict[str, str]]:
+        # TODO: get group keys
+        pass
+
+    # Override
+    def save_group_keys(self, group: ID, sender: ID, keys: Dict[str, str]) -> bool:
+        # TODO: save group keys
+        pass
 
     # """
     #     Address Name Service
@@ -322,10 +341,12 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     def login_command_message(self, user: ID) -> Tuple[Optional[LoginCommand], Optional[ReliableMessage]]:
+        # TODO: get login command & messages
         return None, None
 
     # Override
     def save_login_command_message(self, user: ID, content: LoginCommand, msg: ReliableMessage) -> bool:
+        # TODO: save login command & messages
         return True
 
     #
@@ -339,33 +360,41 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     def add_provider(self, identifier: ID, chosen: int = 0) -> bool:
+        # TODO: get ISP
         return True
 
     # Override
     def update_provider(self, identifier: ID, chosen: int) -> bool:
+        # TODO: update ISP
         return True
 
     # Override
     def remove_provider(self, identifier: ID) -> bool:
+        # TODO: remove ISP
         return True
 
     # Override
     def all_stations(self, provider: ID) -> List[StationInfo]:
         """ get list of (host, port, SP_ID, chosen) """
+        # TODO: get stations of ISP
         return []
 
     # Override
     def add_station(self, identifier: Optional[ID], host: str, port: int, provider: ID, chosen: int = 0) -> bool:
+        # TODO: add station for ISP
         return True
 
     # Override
     def update_station(self, identifier: Optional[ID], host: str, port: int, provider: ID, chosen: int = None) -> bool:
+        # TODO: update station for ISP
         return True
 
     # Override
     def remove_station(self, host: str, port: int, provider: ID) -> bool:
+        # TODO: remove station for ISP
         return True
 
     # Override
     def remove_stations(self, provider: ID) -> bool:
+        # TODO: remove all stations for ISP
         return True
