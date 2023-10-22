@@ -25,9 +25,10 @@
 
 from typing import Optional
 
-from dimples import utf8_encode, utf8_decode, json_encode, json_decode
 from dimples import ID, Document
-from dimples.database.dos.document import parse_document
+
+from ...utils import parse_document
+from ...utils import utf8_encode, utf8_decode, json_encode, json_decode
 
 from .base import Cache
 

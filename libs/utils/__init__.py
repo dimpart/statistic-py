@@ -28,32 +28,48 @@
     ~~~~~
 
     I'm too lazy to write codes for demo project, so I borrow some utils here
-    from the <dimsdk> packages, but I don't suggest you to do it also, because
+    from the <dimples> packages, but I don't suggest you to do it also, because
     I won't promise these private utils will not be changed. Hia hia~ :P
                                              -- Albert Moky @ Jan. 23, 2019
 """
 
 from startrek.fsm import Runnable, Runner
 
-from dimples.utils import utf8_encode, utf8_decode
-from dimples.utils import json_encode, json_decode
+from dimples.utils import *
 
-from dimples.utils import Path
-from dimples.utils import File, TextFile, JSONFile
-from dimples.utils import Singleton
-from dimples.utils import Log, Logging
+from dimples.database.dos.document import parse_document
 
 
 __all__ = [
 
     'Runnable', 'Runner',
 
-    'Log', 'Logging',
-    'Singleton',
-
+    'md5', 'sha1', 'sha256', 'keccak256', 'ripemd160',
+    'base64_encode', 'base64_decode', 'base58_encode', 'base58_decode',
+    'hex_encode', 'hex_decode',
     'utf8_encode', 'utf8_decode',
     'json_encode', 'json_decode',
 
-    'Path',
-    'File', 'TextFile', 'JSONFile',
+    'random_bytes',
+
+    'Converter',
+
+    'Runnable', 'Runner',
+    'StateDelegate',
+
+    'get_remote_address', 'get_local_address',
+
+    'Singleton',
+    'Log', 'Logging',
+    'Path', 'File', 'TextFile', 'JSONFile',
+    'CachePool', 'CacheHolder', 'CacheManager',
+    'FrequencyChecker', 'QueryFrequencyChecker',
+
+    'Config',
+
+    'is_before',
+    'get_msg_sig',
+    'template_replace',
+
+    'parse_document',
 ]

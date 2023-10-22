@@ -41,13 +41,14 @@ __all__ = [
     #   DBI
     #
     'PrivateKeyDBI', 'MetaDBI', 'DocumentDBI',
-    'UserDBI', 'GroupDBI',
+    'UserDBI', 'ContactDBI', 'GroupDBI', 'GroupHistoryDBI',
     'AccountDBI',
 
-    'ReliableMessageDBI', 'CipherKeyDBI',
+    'ReliableMessageDBI', 'CipherKeyDBI', 'GroupKeysDBI',
     'MessageDBI',
 
-    'LoginDBI', 'ProviderDBI',
+    'ProviderInfo', 'StationInfo',
+    'ProviderDBI', 'StationDBI', 'LoginDBI',
     'SessionDBI',
 
     #

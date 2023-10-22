@@ -23,14 +23,14 @@
 # SOFTWARE.
 # ==============================================================================
 
-import time
 from typing import Optional
 
+from dimples import DateTime
 from dimples import ID, Meta
-
-from dimples.utils import CacheManager
-from dimples.common import MetaDBI
+from dimples import MetaDBI
 from dimples.database import MetaStorage
+
+from ..utils import CacheManager
 
 from .redis import MetaCache
 
@@ -71,7 +71,7 @@ class MetaTable(MetaDBI):
 
     # Override
     def meta(self, identifier: ID) -> Optional[Meta]:
-        now = time.time()
+        now = DateTime.now()
         # 1. check memory cache
         value, holder = self.__cache.fetch(key=identifier, now=now)
         if value is None:

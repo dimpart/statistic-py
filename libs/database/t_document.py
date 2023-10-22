@@ -23,15 +23,15 @@
 # SOFTWARE.
 # ==============================================================================
 
-import time
 from typing import Optional
 
+from dimples import DateTime
 from dimples import ID, Document
-
-from dimples.utils import CacheManager
-from dimples.common import DocumentDBI
-from dimples.common.dbi import is_expired
+from dimples import DocumentDBI
 from dimples.database import DocumentStorage
+
+from ..utils import is_before
+from ..utils import CacheManager
 
 from .redis import DocumentCache
 
@@ -65,7 +65,7 @@ class DocumentTable(DocumentDBI):
             doc_type = '*'
         # 0. check old record with time
         old = self.document(identifier=identifier, doc_type=doc_type)
-        if old is not None and is_expired(old_time=old.time, new_time=document.time):
+        if old is not None and is_before(old_time=old.time, new_time=document.time):
             # document expired, drop it
             return False
         # 1. store into memory cache
@@ -77,7 +77,7 @@ class DocumentTable(DocumentDBI):
 
     # Override
     def document(self, identifier: ID, doc_type: Optional[str] = '*') -> Optional[Document]:
-        now = time.time()
+        now = DateTime.now()
         # 1. check memory cache
         value, holder = self.__cache.fetch(key=identifier, now=now)
         if value is None:

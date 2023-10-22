@@ -34,12 +34,11 @@ from typing import Optional, Tuple, List, Dict
 from dimples import SymmetricKey, PrivateKey, SignKey, DecryptKey
 from dimples import ID, Meta, Document
 from dimples import ReliableMessage
-
-from dimples import LoginCommand, ResetCommand
+from dimples import LoginCommand, GroupCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
-from dimples.common.dbi import ProviderInfo, StationInfo
-from dimples.database.t_private import PrivateKeyTable
-from dimples.database.t_cipherkey import CipherKeyTable
+from dimples import ProviderInfo, StationInfo
+from dimples.database import PrivateKeyTable
+from dimples.database import CipherKeyTable
 
 # from .t_ans import AddressNameTable
 from .t_meta import MetaTable
@@ -103,7 +102,7 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     def save_meta(self, meta: Meta, identifier: ID) -> bool:
-        if not Meta.match_id(meta=meta, identifier=identifier):
+        if not meta.match_identifier(identifier=identifier):
             raise AssertionError('meta not match ID: %s' % identifier)
         return self.__meta_table.save_meta(meta=meta, identifier=identifier)
 
@@ -126,7 +125,7 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         meta = self.meta(identifier=document.identifier)
         assert meta is not None, 'meta not exists: %s' % document
         # check document valid before saving it
-        if document.valid or document.verify(public_key=meta.key):
+        if document.valid or document.verify(public_key=meta.public_key):
             return self.__document_table.save_document(document=document)
 
     # Override
@@ -226,6 +225,14 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
     """
 
     # Override
+    def founder(self, group: ID) -> Optional[ID]:
+        pass
+
+    # Override
+    def owner(self, group: ID) -> Optional[ID]:
+        pass
+
+    # Override
     def members(self, group: ID) -> List[ID]:
         # TODO: get group members
         return []
@@ -256,15 +263,27 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         return True
 
     #
-    #   Reset Group DBI
+    #   Group History DBI
     #
 
+    # Override
+    def save_group_history(self, group: ID, content: GroupCommand, message: ReliableMessage) -> bool:
+        return True
+
+    # Override
+    def group_histories(self, group: ID) -> List[Tuple[GroupCommand, ReliableMessage]]:
+        return []
+
+    # Override
     def reset_command_message(self, group: ID) -> Tuple[Optional[ResetCommand], Optional[ReliableMessage]]:
-        # TODO: get reset command & message
         return None, None
 
-    def save_reset_command_message(self, group: ID, content: ResetCommand, msg: ReliableMessage) -> bool:
-        # TODO: save reset command & message
+    # Override
+    def clear_group_member_histories(self, group: ID) -> bool:
+        return True
+
+    # Override
+    def clear_group_admin_histories(self, group: ID) -> bool:
         return True
 
     """

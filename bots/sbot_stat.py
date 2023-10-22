@@ -85,6 +85,7 @@ import threading
 import time
 from typing import Optional, Union, Tuple, Set, List, Dict
 
+from dimples import DateTime
 from dimples import ID, Document, ReliableMessage
 from dimples import ContentType, Content
 from dimples import TextContent, CustomizedContent
@@ -92,12 +93,13 @@ from dimples import ContentProcessor, ContentProcessorCreator
 from dimples import BaseContentProcessor
 from dimples import CustomizedContentProcessor
 from dimples import CommonFacebook, CommonMessenger
-from dimples import Config
-from dimples.utils import Singleton, Log, Logging
-from dimples.utils import Path, Runner
-from dimples.database.dos import Storage
+from dimples.database import Storage
 from dimples.client import ClientMessageProcessor
 from dimples.client import ClientContentProcessorCreator
+
+from dimples.utils import Config
+from dimples.utils import Singleton, Log, Logging
+from dimples.utils import Path, Runner
 
 path = Path.abs(path=__file__)
 path = Path.dir(path=path)
@@ -285,7 +287,6 @@ class StatRecorder(Runner, Logging):
                 'station': '%s:%d' % (host, port),
                 'client': client,
                 'response_time': response_time,
-
             }
             array.append(item)
         # update log file
@@ -394,8 +395,9 @@ class StatRecorder(Runner, Logging):
         if content is None:
             # nothing to do now, return False to have a rest
             return False
-        now = time.time()
+        now = DateTime.current_timestamp()
         msg_time = content.time
+        msg_time = 0 if msg_time is None else msg_time.timestamp
         if msg_time is None or msg_time < now - 3600*24*7:
             self.warning(msg='message expired: %s' % content)
             return True
@@ -430,6 +432,18 @@ class StatRecorder(Runner, Logging):
 
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
+
+    @property
+    def facebook(self) -> CommonFacebook:
+        barrack = super().facebook
+        assert isinstance(barrack, CommonFacebook), 'barrack error: %s' % barrack
+        return barrack
+
+    @property
+    def messenger(self) -> CommonMessenger:
+        transceiver = super().messenger
+        assert isinstance(transceiver, CommonMessenger), 'transceiver error: %s' % transceiver
+        return transceiver
 
     def __get_name(self, sender: str) -> str:
         identifier = ID.parse(identifier=sender)
@@ -600,7 +614,7 @@ g_recorder = StatRecorder()
 Log.LEVEL = Log.DEVELOP
 
 
-DEFAULT_CONFIG = '/etc/dim/config.ini'
+DEFAULT_CONFIG = '/etc/dim_bots/config.ini'
 
 
 if __name__ == '__main__':

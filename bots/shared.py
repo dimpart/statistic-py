@@ -33,12 +33,12 @@ from dimples import ID
 from dimples import Station
 from dimples import CommonFacebook
 from dimples import AccountDBI, MessageDBI, SessionDBI
-from dimples import Config
-from dimples.common import ProviderInfo
+from dimples import ProviderInfo
 from dimples.database import Storage
 from dimples.client import ClientSession, ClientMessenger
 from dimples.client import Terminal
 
+from libs.utils import Config
 from libs.utils import Singleton
 from libs.database import Database
 from libs.client import ClientPacker, ClientProcessor

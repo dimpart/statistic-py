@@ -25,12 +25,13 @@
 
 from typing import Optional, Dict
 
-from dimples import md5, hex_encode
+from dimples import TransportableData
 from dimples import SymmetricKey, ID
 from dimples import InstantMessage
 from dimples import Content, TextContent, FileContent
 from dimples.client import ClientMessenger
 
+from ..utils import md5, hex_encode
 from ..utils import Singleton, Log, Logging
 
 
@@ -89,6 +90,48 @@ class Emitter(Logging):
         }
         self._save_instant_message(msg=msg)
 
+    def upload_file_data(self, content: FileContent, password: SymmetricKey, msg: InstantMessage) -> bool:
+        """
+        Send file data encrypted with password
+
+        :param content:  file content
+        :param password: encrypt/decrypt key
+        :param msg:      outgoing message
+        :return: False on error
+        """
+        # 0. check file content
+        data = content.data
+        if data is None:
+            self.warning(msg='already uploaded: %s' % content.url)
+            return False
+        assert content.password is not None, 'file content error: %s' % content
+        assert content.url is not None, 'file content error: %s' % content
+        # 1. save original file data
+        filename = content.filename
+        assert filename is not None, 'file content error: %s' % content
+        size = cache_file_data(data=data, filename=filename)
+        if size != len(data):
+            self.error(msg='failed to save file data (len=%d): %s' % (len(data), filename))
+            return False
+        # 2. add upload task with encrypted data
+        encrypted = password.encrypt(data=data, extra=content.dictionary)
+        filename = filename_from_data(data=encrypted, filename=filename)
+        sender = msg.sender
+        # 3. upload encrypted file data
+        url = upload_encrypted_data(data=encrypted, filename=filename, sender=sender)
+        if url is None:
+            # uploading in background thread?
+            self.info(msg='wait for uploading: %s -> %s' % (content.filename, filename))
+            self._add_task(filename=filename, msg=msg)
+        else:
+            # upload success
+            self.info(msg='uploaded filename: %s -> %s => %s' % (content.filename, filename, url))
+            content.url = url
+        # 3. replace file data with URL & decrypt key
+        content.password = password
+        content.data = None
+        return True
+
     def _save_instant_message(self, msg: InstantMessage):
         # TODO: save into local storage
         pass
@@ -109,45 +152,6 @@ class Emitter(Logging):
         # save instant message
         self._save_instant_message(msg=i_msg)
 
-    #
-    #   File Message
-    #
-
-    def send_file_message(self, msg: InstantMessage, password: SymmetricKey):
-        """
-        Send file content message with password
-
-        :param msg:      outgoing message
-        :param password: key for encrypt/decrypt file data
-        """
-        content = msg.content
-        assert isinstance(content, FileContent), 'file content error: %s' % content
-        # 1. save origin file data
-        data = content.data
-        filename = content.filename
-        assert data is not None and filename is not None, 'file content error: %s' % content
-        size = cache_file_data(data=data, filename=filename)
-        if size != len(data):
-            self.error(msg='failed to save file data (len=%d): %s' % (len(data), filename))
-            return
-        # 2. save instant message without file data
-        content.data = None
-        self._save_instant_message(msg=msg)
-        # 3. add upload task with encrypted data
-        encrypted = password.encrypt(data=data)
-        filename = filename_from_data(data=encrypted, filename=filename)
-        sender = msg.sender
-        url = upload_encrypted_data(data=encrypted, filename=filename, sender=sender)
-        if url is None:
-            # uploading in background thread
-            self.info(msg='wait for uploading: %s -> %s' % (content.filename, filename))
-            self._add_task(filename=filename, msg=msg)
-        else:
-            # uploaded before
-            self.info(msg='uploaded filename: %s -> %s => %s' % (content.filename, filename, url))
-            content.url = url
-            self._send_instant_message(msg=msg)
-
     def send_image_message(self, image: bytes, thumbnail: bytes, receiver: ID):
         """
         Send image message to receiver
@@ -157,7 +161,8 @@ class Emitter(Logging):
         :param receiver:  destination
         """
         filename = '%s.jpeg' % hex_encode(data=md5(data=image))
-        content = FileContent.image(filename=filename, data=image)
+        ted = TransportableData.create(data=image)
+        content = FileContent.image(filename=filename, data=ted)
         content['length'] = len(image)
         content.thumbnail = thumbnail
         self.send_content(content=content, receiver=receiver)

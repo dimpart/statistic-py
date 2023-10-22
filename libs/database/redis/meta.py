@@ -25,8 +25,9 @@
 
 from typing import Optional
 
-from dimples import json_encode, json_decode, utf8_encode, utf8_decode
 from dimples import ID, Meta
+
+from ...utils import json_encode, json_decode, utf8_encode, utf8_decode
 
 from .base import Cache
 
