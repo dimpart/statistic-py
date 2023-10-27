@@ -265,7 +265,7 @@ class StatRecorder(Runner, Logging):
         # update log file
         return Storage.write_json(container=container, path=log_path)
 
-    def _save_speeds(self, msg_time: float, sender: str, provider: str, stations: List[Dict], client: str):
+    def _save_speeds(self, msg_time: float, sender: str, provider: str, stations: List[Dict], client: Optional[str]):
         log_path = self._get_path(msg_time=msg_time, option='speeds_log')
         container: Dict = Storage.read_json(path=log_path)
         if container is None:
@@ -281,6 +281,10 @@ class StatRecorder(Runner, Logging):
             host = srv.get('host')
             port = srv.get('port')
             response_time = srv.get('response_time')
+            socket_address = srv.get('socket_address')
+            if socket_address is not None:
+                client = socket_address
+            self.info(msg='station speed: %s' % srv)
             item = {
                 'U': sender,
                 'provider': provider,
@@ -576,7 +580,8 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
             provider = content.get('provider')
             stations = content.get('stations')
             addr = content.get('remote_address')
-            self.info(msg='received client log [%s] speeds: %s, %s => %s, %s' % (when, user, addr, provider, stations))
+            self.info(msg='received client log [%s] speeds count: %d, %s, %s => %s'
+                          % (when, len(stations), addr, user, provider))
             recorder.add_log(content=content)
         else:
             self.error(msg='unknown module: %s, action: %s, [%s] %s' % (mod, act, when, content))
