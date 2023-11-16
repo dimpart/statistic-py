@@ -461,6 +461,22 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         else:
             return '%s (%s)' % (sender, name)
 
+    def __get_locale(self, sender: str) -> Optional[str]:
+        identifier = ID.parse(identifier=sender)
+        if identifier is not None:
+            doc = get_doc(identifier=identifier, facebook=self.facebook, messenger=self.messenger)
+            if doc is not None:
+                app = doc.get_property(key='app')
+                language = app.get('language') if isinstance(app, Dict) else None
+                sys = doc.get_property(key='sys')
+                locale = sys.get('locale') if isinstance(sys, Dict) else None
+                if language is None:
+                    return locale
+                elif locale is None:
+                    return language
+                else:
+                    return '%s(%s)' % (language, locale)
+
     def __get_users(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
@@ -482,7 +498,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             if isinstance(ip, Set):
                 ip = list(ip)
             name = self.__get_name(sender=sender)
-            text += 'User : %s,\nIP   : %s;\n\n' % (name, ip)
+            locale = self.__get_locale(sender=sender)
+            text += 'User : %s,\nIP   : %s, %s;\n\n' % (name, ip, locale)
         text += 'Total: %d, Date: %s' % (len(users), day)
         return text
 
@@ -507,7 +524,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             rt = item.get('rt')
             rt, c = math_stat(array=rt)
             name = self.__get_name(sender=sender)
-            text += 'User : %s,\nIP   : %s,\nTimes: %s,\nCount: %d;\n\n' % (name, ip, rt, c)
+            locale = self.__get_locale(sender=sender)
+            text += 'User : %s,\nIP   : %s, %s,\nTimes: %s,\nCount: %d;\n\n' % (name, ip, locale, rt, c)
         text += 'Total: %d, Date: %s' % (len(speeds), day)
         return text
 
