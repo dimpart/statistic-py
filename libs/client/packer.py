@@ -25,13 +25,9 @@
 
 from typing import Optional
 
-from dimples import ID
 from dimples import InstantMessage, SecureMessage
 from dimples import FileContent
-from dimples import DocumentCommand
 from dimples.client import ClientMessagePacker
-
-from ..utils import QueryFrequencyChecker
 
 from .emitter import Emitter
 
@@ -74,7 +70,8 @@ class ClientPacker(ClientMessagePacker):
         i_msg = super().decrypt_message(msg=msg)
         if i_msg is None:
             # failed to decrypt message, visa.key changed?
-            self._push_visa(contact=msg.sender)
+            pass
+            # self._push_visa(contact=msg.sender)
         else:
             content = i_msg.content
             if isinstance(content, FileContent):
@@ -88,20 +85,20 @@ class ClientPacker(ClientMessagePacker):
                     content.password = key
         return i_msg
 
-    def _push_visa(self, contact: ID):
-        checker = QueryFrequencyChecker()
-        if not checker.document_response_expired(identifier=contact):
-            # response not expired yet
-            self.debug(msg='visa response not expired yet: %s' % contact)
-            return False
-        else:
-            self.info(msg='push visa to: %s' % contact)
-        user = self.facebook.current_user
-        visa = None if user is None else user.visa
-        if visa is None or not visa.valid:
-            self.error(msg='user visa error: %s => %s' % (user, visa))
-            return False
-        me = user.identifier
-        command = DocumentCommand.response(identifier=me, document=visa)
-        self.messenger.send_content(sender=me, receiver=contact, content=command, priority=1)
-        return True
+    # def _push_visa(self, contact: ID):
+    #     checker = QueryFrequencyChecker()
+    #     if not checker.document_response_expired(identifier=contact):
+    #         # response not expired yet
+    #         self.debug(msg='visa response not expired yet: %s' % contact)
+    #         return False
+    #     else:
+    #         self.info(msg='push visa to: %s' % contact)
+    #     user = self.facebook.current_user
+    #     visa = None if user is None else user.visa
+    #     if visa is None or not visa.valid:
+    #         self.error(msg='user visa error: %s => %s' % (user, visa))
+    #         return False
+    #     me = user.identifier
+    #     command = DocumentCommand.response(identifier=me, document=visa)
+    #     self.messenger.send_content(sender=me, receiver=contact, content=command, priority=1)
+    #     return True

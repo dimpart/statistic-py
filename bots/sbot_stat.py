@@ -86,7 +86,7 @@ import time
 from typing import Optional, Union, Tuple, Set, List, Dict
 
 from dimples import DateTime
-from dimples import ID, Document, ReliableMessage
+from dimples import ID, ReliableMessage
 from dimples import ContentType, Content
 from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
@@ -109,16 +109,8 @@ Path.add(path=path)
 from bots.shared import GlobalVariable, start_bot
 
 
-def get_doc(identifier: ID, facebook: CommonFacebook, messenger: CommonMessenger) -> Optional[Document]:
+def get_name(identifier: ID, facebook: CommonFacebook) -> str:
     doc = facebook.document(identifier=identifier)
-    if doc is None:
-        messenger.query_document(identifier=identifier)
-    else:
-        return doc
-
-
-def get_name(identifier: ID, facebook: CommonFacebook, messenger: CommonMessenger) -> str:
-    doc = get_doc(identifier=identifier, facebook=facebook, messenger=messenger)
     if doc is not None:
         name = doc.name
         if name is not None and len(name) > 0:
@@ -453,7 +445,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         identifier = ID.parse(identifier=sender)
         name = None
         if identifier is not None:
-            doc = get_doc(identifier=identifier, facebook=self.facebook, messenger=self.messenger)
+            doc = self.facebook.document(identifier=identifier)
             if doc is not None:
                 name = doc.name
         if name is None or len(name) == 0:
@@ -464,7 +456,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
     def __get_locale(self, sender: str) -> Optional[str]:
         identifier = ID.parse(identifier=sender)
         if identifier is not None:
-            doc = get_doc(identifier=identifier, facebook=self.facebook, messenger=self.messenger)
+            doc = self.facebook.document(identifier=identifier)
             if doc is not None:
                 app = doc.get_property(key='app')
                 language = app.get('language') if isinstance(app, Dict) else None
@@ -534,9 +526,10 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
         sender = r_msg.sender
-        nickname = get_name(identifier=sender, facebook=self.facebook, messenger=self.messenger)
+        nickname = self.facebook.document(identifier=sender)
         self.info(msg='received text message from %s: "%s"' % (nickname, text))
-        # TODO: parse text for your business
+        # parse text for your business
+        response = None
         text = content.text
         if text.startswith('users'):
             # query users
@@ -546,8 +539,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             else:
                 day = array[1]
             text = self.__get_users(day=day)
-            return [TextContent.create(text=text)]
-        if text.startswith('speeds'):
+            response = TextContent.create(text=text)
+        elif text.startswith('speeds'):
             # query speeds
             array = text.split(' ')
             if len(array) == 1:
@@ -555,8 +548,16 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             else:
                 day = array[1]
             text = self.__get_speeds(day=day)
-            return [TextContent.create(text=text)]
-        return []
+            response = TextContent.create(text=text)
+        if response is None:
+            return []
+        # calibrate the clock
+        req_time = content.time
+        res_time = response.time
+        print('checking respond time: %s, %s' % (res_time, req_time))
+        if res_time is None or res_time <= req_time:
+            response['time'] = req_time + 1
+        return [response]
 
 
 class StatContentProcessor(CustomizedContentProcessor, Logging):
