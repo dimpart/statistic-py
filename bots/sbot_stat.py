@@ -110,8 +110,8 @@ Path.add(path=path)
 from bots.shared import GlobalVariable, start_bot
 
 
-def get_name(identifier: ID, facebook: CommonFacebook) -> str:
-    doc = facebook.document(identifier=identifier)
+async def get_name(identifier: ID, facebook: CommonFacebook) -> str:
+    doc = await facebook.get_document(identifier=identifier)
     if doc is not None:
         name = doc.name
         if name is not None and len(name) > 0:
@@ -166,6 +166,14 @@ class StatRecorder(Runner, Logging):
         self.__lock = threading.Lock()
         self.__contents: List[CustomizedContent] = []
         self.__config: Config = None
+
+    @property
+    def config(self) -> Optional[Config]:
+        return self.__config
+
+    @config.setter
+    def config(self, conf: Config):
+        self.__config = conf
 
     def _get_path(self, option: str, msg_time: float) -> str:
         temp = self.__config.get_string(section='statistic', option=option)
@@ -393,7 +401,7 @@ class StatRecorder(Runner, Logging):
         return speeds
 
     # Override
-    def process(self) -> bool:
+    async def process(self) -> bool:
         content = self._next()
         if content is None:
             # nothing to do now, return False to have a rest
@@ -427,11 +435,6 @@ class StatRecorder(Runner, Logging):
             self.error(msg='failed to process content: %s, %s' % (e, content))
         return True
 
-    def start(self, config: Config):
-        self.__config = config
-        thread = threading.Thread(target=self.run, daemon=True)
-        thread.start()
-
 
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
@@ -448,11 +451,11 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(transceiver, CommonMessenger), 'transceiver error: %s' % transceiver
         return transceiver
 
-    def __get_name(self, sender: str) -> Optional[str]:
+    async def __get_name(self, sender: str) -> Optional[str]:
         identifier = ID.parse(identifier=sender)
         if identifier is None:
             return None
-        doc = self.facebook.document(identifier=identifier)
+        doc = await self.facebook.get_document(identifier=identifier)
         if doc is None:
             name = None
         else:
@@ -462,10 +465,10 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         else:
             return name
 
-    def __get_locale(self, sender: str) -> Optional[str]:
+    async def __get_locale(self, sender: str) -> Optional[str]:
         identifier = ID.parse(identifier=sender)
         if identifier is not None:
-            doc = self.facebook.document(identifier=identifier)
+            doc = await self.facebook.get_document(identifier=identifier)
             if doc is not None:
                 app = doc.get_property(key='app')
                 language = app.get('language') if isinstance(app, Dict) else None
@@ -478,7 +481,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 else:
                     return '%s(%s)' % (language, locale)
 
-    def __get_users(self, day: str) -> str:
+    async def __get_users(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
             now = time.time()
@@ -490,23 +493,25 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 text = 'error date: %s, %s' % (day, e)
                 self.error(msg=text)
                 return text
-        text = '| ID | Name | Locale | IP |\n'
-        text += '|---|------|--------|----|\n'
+        text = '| ID | Name - Locale | IP |\n'
+        text += '|---|---------------|----|\n'
         users = g_recorder.get_users(now=now)
         self.info(msg='users: %s' % str(users))
         for item in users:
             sender = item.get('U')
-            name = self.__get_name(sender=sender)
-            locale = self.__get_locale(sender=sender)
+            name = await self.__get_name(sender=sender)
+            locale = await self.__get_locale(sender=sender)
             ip = item.get('IP')
             if isinstance(ip, Set):
                 ip = list(ip)
-            text += '| %s | **%s** | %s | %s |\n' % (sender, name, locale, ip)
+            if name is not None:
+                name = '"%s"' % name
+            text += '| %s | **%s** - %s | %s |\n' % (sender, name, locale, ip)
         text += '\n'
         text += 'Total: %d, Date: %s' % (len(users), day)
         return text
 
-    def __get_speeds(self, day: str) -> str:
+    async def __get_speeds(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
             now = time.time()
@@ -534,18 +539,18 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             rt, c = math_stat(array=rt)
             if c > 3:
                 rt += ', count: %d' % c
-            name = self.__get_name(sender=sender)
+            name = await self.__get_name(sender=sender)
             text += '| **%s** | %s | %s | %s |\n' % (name, ip, mta, rt)
         text += '\n'
         text += 'Total: %d, Date: %s' % (len(speeds), day)
         return text
 
     # Override
-    def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
+    async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
         sender = r_msg.sender
-        nickname = get_name(identifier=sender, facebook=self.facebook)
+        nickname = await get_name(identifier=sender, facebook=self.facebook)
         self.info(msg='received text message from "%s": "%s"' % (nickname, text))
         # parse text for your business
         response = None
@@ -557,7 +562,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 day = ''
             else:
                 day = array[1]
-            text = self.__get_users(day=day)
+            text = await self.__get_users(day=day)
             response = TextContent.create(text=text)
         elif text.startswith('speeds'):
             # query speeds
@@ -566,7 +571,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 day = ''
             else:
                 day = array[1]
-            text = self.__get_speeds(day=day)
+            text = await self.__get_speeds(day=day)
             response = TextContent.create(text=text)
         if response is None:
             return []
@@ -576,6 +581,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         print('checking respond time: %s, %s' % (res_time, req_time))
         if res_time is None or res_time <= req_time:
             response['time'] = req_time + 1
+        # respond in markdown format
+        response['format'] = 'markdown'
         return [response]
 
 
@@ -583,14 +590,14 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
     """ Process customized stat content """
 
     # Override
-    def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
+    async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
         assert isinstance(content, CustomizedContent), 'stat content error: %s' % content
         app = content.application
         mod = content.module
         act = content.action
         sender = r_msg.sender
         self.debug(msg='received content from %s: %s, %s, %s' % (sender, app, mod, act))
-        return super().process_content(content=content, r_msg=r_msg)
+        return await super().process_content(content=content, r_msg=r_msg)
 
     # Override
     def _filter(self, app: str, content: CustomizedContent, msg: ReliableMessage) -> Optional[List[Content]]:
@@ -601,7 +608,8 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
         return super()._filter(app=app, content=content, msg=msg)
 
     # Override
-    def handle_action(self, act: str, sender: ID, content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
+    async def handle_action(self, act: str, sender: ID,
+                            content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
         recorder = StatRecorder()
         mod = content.module
         self.__increase_counter(msg=msg)
@@ -682,10 +690,22 @@ Log.LEVEL = Log.DEVELOP
 DEFAULT_CONFIG = '/etc/dim_bots/config.ini'
 
 
-if __name__ == '__main__':
-    start_bot(default_config=DEFAULT_CONFIG,
-              app_name='ServiceBot: Statistics',
-              ans_name='statistic',
-              processor_class=BotMessageProcessor)
+async def main():
+    # client & start bot
+    client = await start_bot(default_config=DEFAULT_CONFIG,
+                             app_name='ServiceBot: Statistics',
+                             ans_name='statistic',
+                             processor_class=BotMessageProcessor)
+    # start recorder
     shared = GlobalVariable()
-    g_recorder.start(config=shared.config)
+    g_recorder.config = shared.config
+    Runner.thread_run(runner=g_recorder)
+    # main run loop
+    await client.start()
+    await client.run()
+    # await client.stop()
+    Log.warning(msg='bot stopped: %s' % client)
+
+
+if __name__ == '__main__':
+    Runner.sync_run(main=main())

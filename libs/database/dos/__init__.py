@@ -2,7 +2,7 @@
 # ==============================================================================
 # MIT License
 #
-# Copyright (c) 2021 Albert Moky
+# Copyright (c) 2019 Albert Moky
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -26,23 +26,19 @@
 """
     Database module
     ~~~~~~~~~~~~~~~
-
-    Redis Client
+    File System
 """
 
-from .base import RedisConnector
-from .base import Cache
-
-from .meta import MetaCache
-from .document import DocumentCache
+from dimples.database.dos import *
 
 
 __all__ = [
 
-    'RedisConnector',
-    'Cache',
-
-    'MetaCache',
-    'DocumentCache',
-
+    'Storage',
+    'PrivateKeyStorage', 'MetaStorage', 'DocumentStorage',
+    'UserStorage',
+    'GroupStorage', 'GroupHistoryStorage',
+    'GroupKeysStorage',
+    'LoginStorage',
+    'StationStorage',
 ]

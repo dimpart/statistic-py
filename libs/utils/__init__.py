@@ -33,16 +33,40 @@
                                              -- Albert Moky @ Jan. 23, 2019
 """
 
-from startrek.fsm import Runnable, Runner
-
 from dimples.utils import *
 
 from dimples.database.dos.document import parse_document
 
+from .pnf import get_filename, get_extension
+from .pnf import get_cache_name
+from .pnf import filename_from_url, filename_from_data
+
+
+def md_esc(text: str) -> str:
+    if text is None:
+        return ''
+    elif not isinstance(text, str):
+        text = str(text)
+    escape = ''
+    for c in text:
+        if c in _md_chars:
+            escape += '\\'
+        escape += c
+    return escape
+
+
+_md_chars = {
+    '\\',
+    '#', '*', '_', '-', '+',
+    '~', '`',
+    '|', ':', '!', '.',
+    '[', ']', '(', ')',
+    '<', '>', '{', '}',
+    '"', "'",
+}
+
 
 __all__ = [
-
-    'Runnable', 'Runner',
 
     'md5', 'sha1', 'sha256', 'keccak256', 'ripemd160',
     'base64_encode', 'base64_decode', 'base58_encode', 'base58_decode',
@@ -55,9 +79,7 @@ __all__ = [
     'Converter',
 
     'Runnable', 'Runner',
-    'StateDelegate',
-
-    'get_remote_address', 'get_local_address',
+    'Daemon',
 
     'Singleton',
     'Log', 'Logging',
@@ -72,4 +94,17 @@ __all__ = [
     'template_replace',
 
     'parse_document',
+
+    #
+    #   PNF
+    #
+    'get_filename', 'get_extension',
+    'get_cache_name',
+    'filename_from_url', 'filename_from_data',
+
+    #
+    #   Others
+    #
+    'md_esc',
+
 ]
