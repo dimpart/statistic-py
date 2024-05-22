@@ -158,6 +158,18 @@ def math_stat(array: List[float]) -> Tuple[str, int]:
     return '%.3f ... **%.3f** ... %.3f' % (left, mean, right), count
 
 
+def parse_ip(ip) -> Optional[List[str]]:
+    if ip is None:
+        return None
+    elif isinstance(ip, str):
+        ip = [ip]
+    array = []
+    for item in ip:
+        text = '[%s](https://ip138.com/iplookup.php?ip=%s "")' % (item, item)
+        array.append(text)
+    return array
+
+
 @Singleton
 class StatRecorder(Runner, Logging):
 
@@ -502,8 +514,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             name = await self.__get_name(sender=sender)
             locale = await self.__get_locale(sender=sender)
             ip = item.get('IP')
-            if isinstance(ip, Set):
-                ip = list(ip)
+            ip = parse_ip(ip=ip)
             if name is not None:
                 name = '"%s"' % name
             text += '| %s | **%s** - %s | %s |\n' % (sender, name, locale, ip)
