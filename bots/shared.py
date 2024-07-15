@@ -39,8 +39,9 @@ from dimples.client import Terminal
 
 from libs.utils import Path, Config
 from libs.utils import Singleton
+from libs.database.redis import RedisConnector
+from libs.database import DbInfo
 from libs.database import Database
-from libs.database.redis import Cache as RedisCache
 from libs.client import ClientPacker, ClientProcessor
 from libs.client import Emitter
 
@@ -93,7 +94,7 @@ def create_config(app_name: str, default_config: str) -> Config:
     # check config file path
     if ini_file is None:
         ini_file = default_config
-    if not Path.exists(path=ini_file):
+    if not await Path.exists(path=ini_file):
         show_help(cmd=cmd, app_name=app_name, default_config=default_config)
         print('')
         print('!!! config file not exists: %s' % ini_file)
@@ -121,24 +122,19 @@ def create_config(app_name: str, default_config: str) -> Config:
     return config
 
 
-def _config_redis(config: Config) -> bool:
+def create_redis_connector(config: Config) -> Optional[RedisConnector]:
     redis_enable = config.get_boolean(section='redis', option='enable')
     if redis_enable:
-        # redis host
+        # create redis connector
         host = config.get_string(section='redis', option='host')
-        if host is not None and len(host) > 0:
-            RedisCache.set_redis_host(host=host)
-        # redis port
+        if host is None:
+            host = 'localhost'
         port = config.get_integer(section='redis', option='port')
-        if port is not None and port > 0:
-            RedisCache.set_redis_port(port=port)
-        # redis password
+        if port is None or port <= 0:
+            port = 6379
+        username = config.get_string(section='redis', option='username')
         password = config.get_string(section='redis', option='password')
-        if password is not None and len(password) > 0:
-            RedisCache.set_redis_password(password=password)
-        # enable redis
-        RedisCache.set_redis_enable(enable=True)
-    return redis_enable
+        return RedisConnector(host=host, port=port, username=username, password=password)
 
 
 async def create_database(config: Config) -> Database:
@@ -146,11 +142,11 @@ async def create_database(config: Config) -> Database:
     root = config.database_root
     public = config.database_public
     private = config.database_private
+    redis_conn = create_redis_connector(config=config)
+    info = DbInfo(redis_connector=redis_conn, root_dir=root, public_dir=public, private_dir=private)
     # create database
-    db = Database(root=root, public=public, private=private)
+    db = Database(info=info)
     db.show_info()
-    # config redis before updating database
-    _config_redis(config=config)
     # update neighbor stations (default provider)
     provider = ProviderInfo.GSP
     neighbors = config.neighbors

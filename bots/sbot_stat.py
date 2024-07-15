@@ -158,11 +158,11 @@ def math_stat(array: List[float]) -> Tuple[str, int]:
     return '%.3f ... **%.3f** ... %.3f' % (left, mean, right), count
 
 
-def parse_ip(ip) -> Optional[List[str]]:
+def parse_ip(ip):
     if ip is None:
         return None
     elif isinstance(ip, str):
-        ip = [ip]
+        return '[%s](https://ip138.com/iplookup.php?ip=%s "")' % (ip, ip)
     array = []
     for item in ip:
         text = '[%s](https://ip138.com/iplookup.php?ip=%s "")' % (item, item)
@@ -202,9 +202,9 @@ class StatRecorder(Runner, Logging):
             if len(self.__contents) > 0:
                 return self.__contents.pop(0)
 
-    def _save_users(self, msg_time: float, users: List[Dict]):
+    async def _save_users(self, msg_time: float, users: List[Dict]):
         log_path = self._get_path(msg_time=msg_time, option='users_log')
-        container: Dict = Storage.read_json(path=log_path)
+        container: Dict = await Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
@@ -265,11 +265,11 @@ class StatRecorder(Runner, Logging):
             })
         container[log_tag] = array
         # update log file
-        return Storage.write_json(container=container, path=log_path)
+        return await Storage.write_json(container=container, path=log_path)
 
-    def _save_stats(self, msg_time: float, stats: List[Dict]):
+    async def _save_stats(self, msg_time: float, stats: List[Dict]):
         log_path = self._get_path(msg_time=msg_time, option='stats_log')
-        container: Dict = Storage.read_json(path=log_path)
+        container: Dict = await Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
@@ -282,11 +282,12 @@ class StatRecorder(Runner, Logging):
         for item in stats:
             array.append(item)
         # update log file
-        return Storage.write_json(container=container, path=log_path)
+        return await Storage.write_json(container=container, path=log_path)
 
-    def _save_speeds(self, msg_time: float, sender: str, provider: str, stations: List[Dict], client: Optional[str]):
+    async def _save_speeds(self, msg_time: float, sender: str,
+                           provider: str, stations: List[Dict], client: Optional[str]):
         log_path = self._get_path(msg_time=msg_time, option='speeds_log')
-        container: Dict = Storage.read_json(path=log_path)
+        container: Dict = await Storage.read_json(path=log_path)
         if container is None:
             container = {}
         year, month, day, hours, minutes = parse_time(msg_time=msg_time)
@@ -313,11 +314,11 @@ class StatRecorder(Runner, Logging):
             }
             array.append(item)
         # update log file
-        return Storage.write_json(container=container, path=log_path)
+        return await Storage.write_json(container=container, path=log_path)
 
-    def get_users(self, now: float) -> List[Dict]:
+    async def get_users(self, now: float) -> List[Dict]:
         log_path = self._get_path(msg_time=now, option='users_log')
-        container = Storage.read_json(path=log_path)
+        container = await Storage.read_json(path=log_path)
         if container is None:
             return []
         users: List[Dict] = []
@@ -359,9 +360,9 @@ class StatRecorder(Runner, Logging):
                     ips.add(ip_list)
         return users
 
-    def get_speeds(self, now: float) -> List[Dict]:
+    async def get_speeds(self, now: float) -> List[Dict]:
         log_path = self._get_path(msg_time=now, option='speeds_log')
-        container = Storage.read_json(path=log_path)
+        container = await Storage.read_json(path=log_path)
         if container is None:
             return []
         speeds: List[Dict] = []
@@ -428,10 +429,10 @@ class StatRecorder(Runner, Logging):
             mod = content.module
             if mod == 'users':
                 users = content.get('users')
-                self._save_users(msg_time=msg_time, users=users)
+                await self._save_users(msg_time=msg_time, users=users)
             elif mod == 'stats':
                 stats = content.get('stats')
-                self._save_stats(msg_time=msg_time, stats=stats)
+                await self._save_stats(msg_time=msg_time, stats=stats)
             elif mod == 'speeds':
                 sender = content.get('U')
                 provider = content.get('provider')
@@ -440,7 +441,8 @@ class StatRecorder(Runner, Logging):
                 if isinstance(client, List):  # or isinstance(client, Tuple):
                     assert len(client) == 2, 'socket address error: %s' % client
                     client = '%s:%d' % (client[0], client[1])
-                self._save_speeds(msg_time=msg_time, sender=sender, provider=provider, stations=stations, client=client)
+                await self._save_speeds(msg_time=msg_time, sender=sender,
+                                        provider=provider, stations=stations, client=client)
             else:
                 self.warning(msg='ignore mod: %s, %s' % (mod, content))
         except Exception as e:
@@ -507,7 +509,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 return text
         text = '| ID | Name - Locale | IP |\n'
         text += '|---|---------------|----|\n'
-        users = g_recorder.get_users(now=now)
+        users = await g_recorder.get_users(now=now)
         self.info(msg='users: %s' % str(users))
         for item in users:
             sender = item.get('U')
@@ -536,11 +538,12 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 return text
         text = '| Name | IP | Station | Times |\n'
         text += '|-----|----|---------|-------|\n'
-        speeds = g_recorder.get_speeds(now=now)
+        speeds = await g_recorder.get_speeds(now=now)
         self.info(msg='speeds: %s' % str(speeds))
         for item in speeds:
             sender = item.get('U')
             ip = item.get('client_ip')
+            ip = parse_ip(ip=ip)
             mta = item.get('station')
             if isinstance(mta, str):
                 pos = mta.find(':')

@@ -37,27 +37,26 @@ from dimples import ReliableMessage
 from dimples import LoginCommand, GroupCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
 from dimples import ProviderInfo, StationInfo
+from dimples.database import DbInfo
 from dimples.database import PrivateKeyTable
 from dimples.database import CipherKeyTable
-
-# from .t_ans import AddressNameTable
-from .t_meta import MetaTable
-from .t_document import DocumentTable
+from dimples.database import MetaTable
+from dimples.database import DocumentTable
 
 
 class Database(AccountDBI, MessageDBI, SessionDBI):
 
-    def __init__(self, root: str = None, public: str = None, private: str = None):
+    def __init__(self, info: DbInfo):
         super().__init__()
         self.__users = []
         self.__contacts = {}
         # Entity
-        self.__private_table = PrivateKeyTable(root=root, public=public, private=private)
-        self.__meta_table = MetaTable(root=root, public=public, private=private)
-        self.__document_table = DocumentTable(root=root, public=public, private=private)
-        self.__cipherkey_table = CipherKeyTable(root=root, public=public, private=private)
+        self.__private_table = PrivateKeyTable(info=info)
+        self.__meta_table = MetaTable(info=info)
+        self.__document_table = DocumentTable(info=info)
+        self.__cipherkey_table = CipherKeyTable(info=info)
         # # ANS
-        # self.__ans_table = AddressNameTable(root=root, public=public, private=private)
+        # self.__ans_table = AddressNameTable(info=info)
 
     def show_info(self):
         # Entity

@@ -30,19 +30,17 @@
     Redis Client
 """
 
-from .base import RedisConnector
-from .base import Cache
-
-from .meta import MetaCache
-from .document import DocumentCache
+from dimples.database.redis import *
 
 
 __all__ = [
 
-    'RedisConnector',
-    'Cache',
+    'RedisConnector', 'RedisCache',
 
-    'MetaCache',
-    'DocumentCache',
+    'MetaCache', 'DocumentCache',
+    'UserCache', 'LoginCache',
+    'GroupCache', 'GroupHistoryCache', 'GroupKeysCache',
+    'MessageCache',
+    'StationCache',
 
 ]
