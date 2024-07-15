@@ -100,7 +100,6 @@ from dimples.client import ClientContentProcessorCreator
 from dimples.utils import Config
 from dimples.utils import Singleton, Log, Logging
 from dimples.utils import Path, Runner
-from dimples.utils import get_msg_sig
 
 path = Path.abs(path=__file__)
 path = Path.dir(path=path)
@@ -626,7 +625,6 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
                             content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
         recorder = StatRecorder()
         mod = content.module
-        self.__increase_counter(msg=msg)
         if mod == 'users':
             users = content.get('users')
             self.info(msg='received station log [%s] users: %s' % (content.time, users))
@@ -647,28 +645,6 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
             self.error(msg='unknown module: %s, action: %s, [%s] %s' % (mod, act, content.time, content))
         # respond nothing
         return []
-
-    def __increase_counter(self, msg: ReliableMessage):
-        now = DateTime.now()
-        if self.__start_time is None:
-            self.__start_time = now
-        self.__count += 1
-        # check duplicated
-        sig = get_msg_sig(msg=msg)
-        cnt = self.__signatures.get(sig)
-        if cnt is None:
-            cnt = 1
-        else:
-            cnt += 1
-            self.__duplicates += 1
-        self.__signatures[sig] = cnt
-        print('>>> stat msg count: %d, elapsed: %f; (%s) duplicated: %d'
-              % (self.__count, now - self.__start_time, sig, self.__duplicates))
-
-    __start_time = None
-    __count = 0
-    __signatures = {}
-    __duplicates = 0
 
 
 class BotContentProcessorCreator(ClientContentProcessorCreator):
