@@ -37,6 +37,7 @@ from dimples import ReliableMessage
 from dimples import LoginCommand, GroupCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
 from dimples import ProviderInfo, StationInfo
+from dimples import MetaUtils
 from dimples.database import DbInfo
 from dimples.database import PrivateKeyTable
 from dimples.database import CipherKeyTable
@@ -101,7 +102,7 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     async def save_meta(self, meta: Meta, identifier: ID) -> bool:
-        if not meta.match_identifier(identifier=identifier):
+        if not MetaUtils.match_identifier(identifier=identifier, meta=meta):
             raise AssertionError('meta not match ID: %s' % identifier)
         return await self.__meta_table.save_meta(meta=meta, identifier=identifier)
 

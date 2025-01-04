@@ -29,13 +29,24 @@
 
 """
 
+from dimples.common.compat import CommonLoader as ExtensionLoader
+from dimples.common import CommonArchivist as ClientArchivist
 from dimples.client import ClientMessageProcessor as ClientProcessor
+from dimples.client.cpu import CustomizedContentProcessor
+from dimples.client.cpu import ClientContentProcessorCreator
 
 from .packer import ClientPacker
 from .emitter import Emitter
 
 
 __all__ = [
+
+    'ExtensionLoader',
+
+    'CustomizedContentProcessor',
+    'ClientContentProcessorCreator',
+
+    'ClientArchivist',
 
     'ClientProcessor',
     'ClientPacker',

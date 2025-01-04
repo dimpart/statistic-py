@@ -91,11 +91,9 @@ from dimples import ContentType, Content
 from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
 from dimples import BaseContentProcessor
-from dimples import CustomizedContentProcessor
 from dimples import CommonFacebook, CommonMessenger
 from dimples.database import Storage
 from dimples.client import ClientMessageProcessor
-from dimples.client import ClientContentProcessorCreator
 
 from dimples.utils import Config
 from dimples.utils import Singleton, Log, Logging
@@ -106,7 +104,11 @@ path = Path.dir(path=path)
 path = Path.dir(path=path)
 Path.add(path=path)
 
-from bots.shared import GlobalVariable, start_bot
+from libs.client import CustomizedContentProcessor
+from libs.client import ClientContentProcessorCreator
+
+from bots.shared import GlobalVariable
+from bots.shared import create_config, start_bot
 
 
 async def get_name(identifier: ID, facebook: CommonFacebook) -> str:
@@ -412,6 +414,10 @@ class StatRecorder(Runner, Logging):
                 rt.append(response_time)
         return speeds
 
+    def start(self):
+        thr = Runner.async_thread(coro=self.run())
+        thr.start()
+
     # Override
     async def process(self) -> bool:
         content = self._next()
@@ -483,9 +489,9 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         if identifier is not None:
             doc = await self.facebook.get_document(identifier=identifier)
             if doc is not None:
-                app = doc.get_property(key='app')
+                app = doc.get_property(name='app')
                 language = app.get('language') if isinstance(app, Dict) else None
-                sys = doc.get_property(key='sys')
+                sys = doc.get_property(name='sys')
                 locale = sys.get('locale') if isinstance(sys, Dict) else None
                 if language is None:
                     return locale
@@ -664,7 +670,7 @@ class BotContentProcessorCreator(ClientContentProcessorCreator):
 class BotMessageProcessor(ClientMessageProcessor):
 
     # Override
-    def _create_creator(self) -> ContentProcessorCreator:
+    def _create_creator(self, facebook: CommonFacebook, messenger: CommonMessenger) -> ContentProcessorCreator:
         return BotContentProcessorCreator(facebook=self.facebook, messenger=self.messenger)
 
 
@@ -681,19 +687,19 @@ DEFAULT_CONFIG = '/etc/dim_bots/config.ini'
 
 
 async def main():
-    # client & start bot
-    client = await start_bot(default_config=DEFAULT_CONFIG,
-                             app_name='ServiceBot: Statistics',
-                             ans_name='statistic',
-                             processor_class=BotMessageProcessor)
-    # start recorder
+    # create global variable
     shared = GlobalVariable()
+    config = await create_config(app_name='ServiceBot: Statistics', default_config=DEFAULT_CONFIG)
+    await shared.prepare(config=config)
+    #
+    #  Start recorder
+    #
     g_recorder.config = shared.config
-    Runner.thread_run(runner=g_recorder)
-    # main run loop
-    await client.start()
-    await client.run()
-    # await client.stop()
+    g_recorder.start()
+    #
+    #  Create & start the bot
+    #
+    client = await start_bot(ans_name='statistic', processor_class=BotMessageProcessor)
     Log.warning(msg='bot stopped: %s' % client)
 
 

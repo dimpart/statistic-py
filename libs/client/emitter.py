@@ -116,7 +116,7 @@ class Emitter(Logging):
             content.group = receiver
         messenger = self.messenger
         facebook = messenger.facebook
-        current = facebook.current_user
+        current = await facebook.current_user
         assert current is not None, 'current user not set'
         sender = current.identifier
         # 1. pack instant message
