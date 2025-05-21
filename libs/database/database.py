@@ -38,7 +38,7 @@ from dimples import LoginCommand, GroupCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
 from dimples import ProviderInfo, StationInfo
 from dimples import MetaUtils
-from dimples.database import DbInfo
+from dimples.utils import Config
 from dimples.database import PrivateKeyTable
 from dimples.database import CipherKeyTable
 from dimples.database import MetaTable
@@ -47,15 +47,15 @@ from dimples.database import DocumentTable
 
 class Database(AccountDBI, MessageDBI, SessionDBI):
 
-    def __init__(self, info: DbInfo):
+    def __init__(self, config: Config):
         super().__init__()
         self.__users = []
         self.__contacts = {}
         # Entity
-        self.__private_table = PrivateKeyTable(info=info)
-        self.__meta_table = MetaTable(info=info)
-        self.__document_table = DocumentTable(info=info)
-        self.__cipherkey_table = CipherKeyTable(info=info)
+        self.__private_table = PrivateKeyTable(config=config)
+        self.__meta_table = MetaTable(config=config)
+        self.__document_table = DocumentTable(config=config)
+        self.__cipherkey_table = CipherKeyTable(config=config)
         # # ANS
         # self.__ans_table = AddressNameTable(info=info)
 

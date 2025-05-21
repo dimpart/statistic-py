@@ -28,8 +28,27 @@ function title() {
     echo ""
 }
 
+
+if [[ "$*" == "restart" ]]
+then
+    launch="restart"
+    echo "========================"
+    echo "    Restarting ..."
+    echo "========================"
+else
+    launch="start"
+    echo "========================"
+    echo "    Starting ..."
+    echo "========================"
+fi
+
+
+#
+#   Service Bots
+#
+
 title "DIM Stat Bot"
-restart stat "bots/sbot_stat.py"
+${launch} stat "bots/sbot_stat.py"
 
 echo ""
 echo "    >>> Done <<<"
