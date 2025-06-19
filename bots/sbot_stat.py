@@ -571,6 +571,17 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         sender = r_msg.sender
         nickname = await get_name(identifier=sender, facebook=self.facebook)
         self.info(msg='received text message from "%s": "%s"' % (nickname, text))
+        # check permissions before executing command
+        shared = GlobalVariable()
+        supervisors = await shared.config.get_supervisors(facebook=shared.facebook)
+        if sender not in supervisors:
+            self.warning(msg='permission denied: "%s", sender: %s' % (content, sender))
+            text = 'Forbidden\n'
+            text += '\n----\n'
+            text += 'Permission Denied'
+            response = TextContent.create(text=text)
+            response['format'] = 'markdown'
+            return [response]
         # parse text for your business
         response = None
         text = content.text
@@ -683,7 +694,7 @@ g_recorder = StatRecorder()
 Log.LEVEL = Log.DEVELOP
 
 
-DEFAULT_CONFIG = '/etc/dim_bots/config.ini'
+DEFAULT_CONFIG = '/etc/dim/stat.ini'
 
 
 async def main():
