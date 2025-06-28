@@ -62,8 +62,6 @@ Generating DIM account...
     3: ISP (Service Provider)
     4: Bot (Business Node)
     5: ICP (Content Provider)
-    6: Supervisor (Company President)
-    7: Company (Super Group for ISP/ICP)
 >>> please input address type:
 ```
 
@@ -116,7 +114,7 @@ public  = /var/dim/public
 private = /var/dim/private
 
 [station]
-host = 106.52.25.169
+host = 134.185.88.109
 port = 9394
 
 [ans]

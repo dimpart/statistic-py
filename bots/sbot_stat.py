@@ -83,8 +83,9 @@
 
 import threading
 import time
-from typing import Optional, Union, Tuple, Set, List, Dict
+from typing import Optional, Tuple, Set, List, Dict
 
+from dimples import utf8_encode, base64_encode
 from dimples import DateTime
 from dimples import ID, ReliableMessage
 from dimples import ContentType, Content
@@ -500,6 +501,28 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 else:
                     return '%s(%s)' % (language, locale)
 
+    async def __get_visa_info(self, sender: str) -> str:
+        text = ''
+        identifier = ID.parse(identifier=sender)
+        if identifier is not None:
+            doc = await self.facebook.get_document(identifier=identifier)
+            if doc is not None:
+                app = doc.get_property(name='app')
+                if isinstance(app, Dict):
+                    text += '### visa.app\n'
+                    text += '| Key | Value |\n'
+                    text += '|-----|-------|\n'
+                    for key in app:
+                        text += '| %s | %s |\n' % (key, app[key])
+                sys = doc.get_property(name='sys')
+                if isinstance(sys, Dict):
+                    text += '### visa.sys\n'
+                    text += '| Key | Value |\n'
+                    text += '|-----|-------|\n'
+                    for key in sys:
+                        text += '| %s | %s |\n' % (key, sys[key])
+        return text
+
     async def __get_users(self, day: str) -> str:
         day = day.strip()
         if len(day) == 0:
@@ -512,8 +535,8 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 text = 'error date: %s, %s' % (day, e)
                 self.error(msg=text)
                 return text
-        text = '| ID | Name - Locale | IP |\n'
-        text += '|---|---------------|----|\n'
+        text = '| User | IP |\n'
+        text += '|------|----|\n'
         users = await g_recorder.get_users(now=now)
         self.info(msg='users: %s' % str(users))
         for item in users:
@@ -522,9 +545,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             locale = await self.__get_locale(sender=sender)
             ip = item.get('IP')
             ip = parse_ip(ip=ip)
-            if name is not None:
-                name = '"%s"' % name
-            text += '| %s | **%s** - %s | %s |\n' % (sender, name, locale, ip)
+            # build details
+            md = '## **%s**\n' % name
+            md += '* ID: %s\n' % sender
+            md += await self.__get_visa_info(sender=sender)
+            base64 = base64_encode(data=utf8_encode(string=md))
+            href = 'data:text/plain;charset=UTF-8;base64,%s' % base64
+            text += '| [%s](%s "") - %s | %s |\n' % (name, href, locale, ip)
         text += '\n'
         text += 'Total: %d, Date: %s' % (len(users), day)
         return text
@@ -594,6 +621,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 day = array[1]
             text = await self.__get_users(day=day)
             response = TextContent.create(text=text)
+            response['format'] = 'markdown'
         elif text.startswith('speeds'):
             # query speeds
             array = text.split(' ')
@@ -667,7 +695,7 @@ class StatContentProcessor(CustomizedContentProcessor, Logging):
 class BotContentProcessorCreator(ClientContentProcessorCreator):
 
     # Override
-    def create_content_processor(self, msg_type: Union[int, ContentType]) -> Optional[ContentProcessor]:
+    def create_content_processor(self, msg_type: str) -> Optional[ContentProcessor]:
         # text
         if msg_type == ContentType.TEXT:
             return TextContentProcessor(facebook=self.facebook, messenger=self.messenger)
