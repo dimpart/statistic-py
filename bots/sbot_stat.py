@@ -105,11 +105,17 @@ path = Path.dir(path=path)
 path = Path.dir(path=path)
 Path.add(path=path)
 
+from libs.utils import template_replace
 from libs.client import CustomizedContentProcessor
 from libs.client import ClientContentProcessorCreator
 
 from bots.shared import GlobalVariable
 from bots.shared import create_config, start_bot
+
+
+async def get_supervisors() -> List[ID]:
+    shared = GlobalVariable()
+    return await shared.config.get_supervisors(facebook=shared.facebook)
 
 
 async def get_name(identifier: ID, facebook: CommonFacebook) -> str:
@@ -129,6 +135,14 @@ def two_digits(value: int) -> str:
         return '0%s' % value
     else:
         return '%s' % value
+
+
+def yesterday() -> str:
+    day = DateTime.current_timestamp() - 3600 * 24
+    day = DateTime(timestamp=day)
+    day = str(day)
+    array = day.split()
+    return array[0]
 
 
 def parse_time(msg_time: float) -> Tuple[str, str, str, str, str]:
@@ -591,6 +605,66 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         text += 'Total: %d, Date: %s' % (len(speeds), day)
         return text
 
+    ADMIN_COMMANDS = [
+        'users',
+        'speeds',
+    ]
+
+    HELP_PROMPT = '## Admin Commands\n' \
+                  '* users\n' \
+                  '* users {yyyy-mm-dd}\n' \
+                  '* speeds\n' \
+                  '* speeds {yyyy-mm-dd}\n'
+
+    async def _help_info(self, supervisors: List[ID]) -> str:
+        facebook = self.facebook
+        text = '## Supervisors\n'
+        for did in supervisors:
+            name = await facebook.get_name(identifier=did)
+            if name is None:
+                text += '* %s\n' % did
+                continue
+            text += '* "%s" - %s\n' % (name, did)
+        prompt = template_replace(template=self.HELP_PROMPT, key='yyyy-mm-dd', value=yesterday())
+        return '%s\n%s' % (prompt, text)
+
+    async def _process_admin_command(self, cmd: str, sender: ID, supervisors: List[ID]) -> str:
+        # check permissions before executing command
+        if sender not in supervisors:
+            self.warning(msg='permission denied: "%s", sender: %s' % (cmd, sender))
+            text = 'Forbidden\n'
+            text += '\n----\n'
+            text += 'Permission Denied'
+            return text
+        #
+        #  query users
+        #
+        if cmd.startswith('users'):
+            array = cmd.split(' ')
+            if len(array) == 1:
+                day = ''
+            else:
+                day = array[1]
+            return await self.__get_users(day=day)
+        #
+        #  query speeds
+        #
+        if cmd.startswith('speeds'):
+            # query speeds
+            array = cmd.split(' ')
+            if len(array) == 1:
+                day = ''
+            else:
+                day = array[1]
+            return await self.__get_speeds(day=day)
+        #
+        #  error
+        #
+        text = 'Error\n'
+        text += '\n----\n'
+        text += 'Unknown command: "%s"' % cmd
+        return text
+
     # Override
     async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
         assert isinstance(content, TextContent), 'text content error: %s' % content
@@ -598,41 +672,22 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         sender = r_msg.sender
         nickname = await get_name(identifier=sender, facebook=self.facebook)
         self.info(msg='received text message from "%s": "%s"' % (nickname, text))
-        # check permissions before executing command
-        shared = GlobalVariable()
-        supervisors = await shared.config.get_supervisors(facebook=shared.facebook)
-        if sender not in supervisors:
-            self.warning(msg='permission denied: "%s", sender: %s' % (content, sender))
-            text = 'Forbidden\n'
-            text += '\n----\n'
-            text += 'Permission Denied'
-            response = TextContent.create(text=text)
-            response['format'] = 'markdown'
-            return [response]
-        # parse text for your business
-        response = None
-        text = content.text
-        if text.startswith('users'):
-            # query users
-            array = text.split(' ')
-            if len(array) == 1:
-                day = ''
-            else:
-                day = array[1]
-            text = await self.__get_users(day=day)
-            response = TextContent.create(text=text)
-            response['format'] = 'markdown'
-        elif text.startswith('speeds'):
-            # query speeds
-            array = text.split(' ')
-            if len(array) == 1:
-                day = ''
-            else:
-                day = array[1]
-            text = await self.__get_speeds(day=day)
-            response = TextContent.create(text=text)
-        if response is None:
+        if text is None:
             return []
+        else:
+            text = text.strip()
+            supervisors = await get_supervisors()
+        if text == 'help':
+            res = await self._help_info(supervisors=supervisors)
+        elif text in self.ADMIN_COMMANDS:
+            res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
+        elif text.startswith('users ') or text.startswith('speeds '):
+            res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
+        else:
+            self.error(msg='unknown command: "%s" from %s' % (text, sender))
+            return []
+        # parse text for your business
+        response = TextContent.create(text=res)
         # calibrate the clock
         req_time = content.time
         res_time = response.time

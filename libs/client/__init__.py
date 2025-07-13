@@ -29,7 +29,7 @@
 
 """
 
-from dimples.common.compat import CommonLoader as ExtensionLoader
+from dimples.common.compat import LibraryLoader
 from dimples.common import CommonArchivist as ClientArchivist
 from dimples.client import ClientMessageProcessor as ClientProcessor
 from dimples.client.cpu import CustomizedContentProcessor
@@ -41,7 +41,7 @@ from .emitter import Emitter
 
 __all__ = [
 
-    'ExtensionLoader',
+    'LibraryLoader',
 
     'CustomizedContentProcessor',
     'ClientContentProcessorCreator',

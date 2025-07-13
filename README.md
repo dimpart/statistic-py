@@ -109,9 +109,16 @@ open ```etc/config.ini```
 #
 
 [database]
-# root  = /var/dim
-public  = /var/dim/public
-private = /var/dim/private
+# root    = /var/dim
+public    = /var/dim/public
+protected = /var/dim/protected
+private   = /var/dim/private
+
+[redis]
+# host     = 'localhost'
+# port     = 6379
+# password = '1234'
+# enable   = on
 
 [station]
 host = 134.185.88.109
@@ -119,6 +126,14 @@ port = 9394
 
 [ans]
 statistic = stat@31PyFapLXhUiThUTa6Y2T5uaxWCRvLtaAg
+
+[admin]
+supervisors = 0x952718A18C6b21abb593D84203282fe1c21773D6, 0x9527983A58D48C2CA9016D84043D557981C2AC5a
+
+[statistic]
+users_log  = /data/logs/dim_users-{yyyy}-{mm}-{dd}.js
+stats_log  = /data/logs/dim_stats-{yyyy}-{mm}-{dd}.js
+speeds_log = /data/logs/dim_speeds-{yyyy}-{mm}-{dd}.js
 ```
 
 1.3. Start your programming
