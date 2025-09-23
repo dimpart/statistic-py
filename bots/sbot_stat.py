@@ -85,9 +85,9 @@ import threading
 import time
 from typing import Optional, Tuple, Set, List, Dict
 
-from dimples import utf8_encode, base64_encode
 from dimples import DateTime
-from dimples import ID, ReliableMessage
+from dimples import ID, Visa
+from dimples import ReliableMessage
 from dimples import ContentType, Content
 from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
@@ -106,7 +106,11 @@ path = Path.dir(path=path)
 Path.add(path=path)
 
 from libs.utils import template_replace
+from libs.utils import md_user_url
+from libs.utils import get_name, get_locale
+from libs.utils import yesterday, parse_time
 from libs.client import CustomizedContentProcessor
+from libs.client import CustomizedContentHandler, BaseCustomizedHandler
 from libs.client import ClientContentProcessorCreator
 
 from bots.shared import GlobalVariable
@@ -116,44 +120,6 @@ from bots.shared import create_config, start_bot
 async def get_supervisors() -> List[ID]:
     shared = GlobalVariable()
     return await shared.config.get_supervisors(facebook=shared.facebook)
-
-
-async def get_name(identifier: ID, facebook: CommonFacebook) -> str:
-    doc = await facebook.get_document(identifier=identifier)
-    if doc is not None:
-        name = doc.name
-        if name is not None and len(name) > 0:
-            return name
-    name = identifier.name
-    if name is not None and len(name) > 0:
-        return name
-    return str(identifier.address)
-
-
-def two_digits(value: int) -> str:
-    if value < 10:
-        return '0%s' % value
-    else:
-        return '%s' % value
-
-
-def yesterday() -> str:
-    day = DateTime.current_timestamp() - 3600 * 24
-    day = DateTime(timestamp=day)
-    day = str(day)
-    array = day.split()
-    return array[0]
-
-
-def parse_time(msg_time: float) -> Tuple[str, str, str, str, str]:
-    local_time = time.localtime(msg_time)
-    assert isinstance(local_time, time.struct_time), 'time error: %s' % local_time
-    year = str(local_time.tm_year)
-    month = two_digits(value=local_time.tm_mon)
-    day = two_digits(value=local_time.tm_mday)
-    hours = two_digits(value=local_time.tm_hour)
-    minutes = two_digits(value=local_time.tm_min)
-    return year, month, day, hours, minutes
 
 
 def math_stat(array: List[float]) -> Tuple[str, int]:
@@ -485,57 +451,10 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(transceiver, CommonMessenger), 'transceiver error: %s' % transceiver
         return transceiver
 
-    async def __get_name(self, sender: str) -> Optional[str]:
-        identifier = ID.parse(identifier=sender)
-        if identifier is None:
-            return None
-        doc = await self.facebook.get_document(identifier=identifier)
-        if doc is None:
-            name = None
-        else:
-            name = doc.name
-        if name is None or len(name) == 0:
-            return identifier.name
-        else:
-            return name
-
-    async def __get_locale(self, sender: str) -> Optional[str]:
+    async def __get_visa(self, sender: str) -> Optional[Visa]:
         identifier = ID.parse(identifier=sender)
         if identifier is not None:
-            doc = await self.facebook.get_document(identifier=identifier)
-            if doc is not None:
-                app = doc.get_property(name='app')
-                language = app.get('language') if isinstance(app, Dict) else None
-                sys = doc.get_property(name='sys')
-                locale = sys.get('locale') if isinstance(sys, Dict) else None
-                if language is None:
-                    return locale
-                elif locale is None:
-                    return language
-                else:
-                    return '%s(%s)' % (language, locale)
-
-    async def __get_visa_info(self, sender: str) -> str:
-        text = ''
-        identifier = ID.parse(identifier=sender)
-        if identifier is not None:
-            doc = await self.facebook.get_document(identifier=identifier)
-            if doc is not None:
-                app = doc.get_property(name='app')
-                if isinstance(app, Dict):
-                    text += '### visa.app\n'
-                    text += '| Key | Value |\n'
-                    text += '|-----|-------|\n'
-                    for key in app:
-                        text += '| %s | %s |\n' % (key, app[key])
-                sys = doc.get_property(name='sys')
-                if isinstance(sys, Dict):
-                    text += '### visa.sys\n'
-                    text += '| Key | Value |\n'
-                    text += '|-----|-------|\n'
-                    for key in sys:
-                        text += '| %s | %s |\n' % (key, sys[key])
-        return text
+            return await self.facebook.get_visa(user=identifier)
 
     async def __get_users(self, day: str) -> str:
         day = day.strip()
@@ -554,18 +473,21 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         users = await g_recorder.get_users(now=now)
         self.info(msg='users: %s' % str(users))
         for item in users:
+            # get user info
             sender = item.get('U')
-            name = await self.__get_name(sender=sender)
-            locale = await self.__get_locale(sender=sender)
+            visa = await self.__get_visa(sender=sender)
+            if visa is None:
+                title = '**%s**' % sender
+            else:
+                title = md_user_url(visa=visa)
+                # get language
+                locale = get_locale(visa=visa)
+                if locale is not None:
+                    title = '%s - %s' % (title, locale)
+            # get IP info
             ip = item.get('IP')
             ip = parse_ip(ip=ip)
-            # build details
-            md = '## **%s**\n' % name
-            md += '* ID: %s\n' % sender
-            md += await self.__get_visa_info(sender=sender)
-            base64 = base64_encode(data=utf8_encode(string=md))
-            href = 'data:text/plain;charset=UTF-8;base64,%s' % base64
-            text += '| [%s](%s "") - %s | %s |\n' % (name, href, locale, ip)
+            text += '| %s | %s |\n' % (title, ip)
         text += '\n'
         text += 'Total: %d, Date: %s' % (len(users), day)
         return text
@@ -582,7 +504,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                 text = 'error date: %s, %s' % (day, e)
                 self.error(msg=text)
                 return text
-        text = '| Name | IP | Station | Times |\n'
+        text = '| User | IP | Station | Times |\n'
         text += '|-----|----|---------|-------|\n'
         speeds = await g_recorder.get_speeds(now=now)
         self.info(msg='speeds: %s' % str(speeds))
@@ -599,8 +521,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             rt, c = math_stat(array=rt)
             if c > 3:
                 rt += ', count: %d' % c
-            name = await self.__get_name(sender=sender)
-            text += '| **%s** | %s | %s | %s |\n' % (name, ip, mta, rt)
+            # get user info
+            visa = await self.__get_visa(sender=sender)
+            if visa is None:
+                title = '**%s**' % sender
+            else:
+                title = md_user_url(visa=visa)
+            text += '| **%s** | %s | %s | %s |\n' % (title, ip, mta, rt)
         text += '\n'
         text += 'Total: %d, Date: %s' % (len(speeds), day)
         return text
@@ -620,10 +547,11 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         facebook = self.facebook
         text = '## Supervisors\n'
         for did in supervisors:
-            name = await facebook.get_name(identifier=did)
-            if name is None:
+            visa = await facebook.get_visa(user=did)
+            if visa is None:
                 text += '* %s\n' % did
                 continue
+            name = get_name(visa=visa)
             text += '* "%s" - %s\n' % (name, did)
         prompt = template_replace(template=self.HELP_PROMPT, key='yyyy-mm-dd', value=yesterday())
         return '%s\n%s' % (prompt, text)
@@ -670,7 +598,11 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
         sender = r_msg.sender
-        nickname = await get_name(identifier=sender, facebook=self.facebook)
+        visa = await self.facebook.get_visa(user=sender)
+        if visa is None:
+            nickname = str(sender)
+        else:
+            nickname = get_name(visa=visa)
         self.info(msg='received text message from "%s": "%s"' % (nickname, text))
         if text is None:
             return []
@@ -684,8 +616,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         elif text.startswith('users ') or text.startswith('speeds '):
             res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
         else:
-            self.error(msg='unknown command: "%s" from %s' % (text, sender))
-            return []
+            res = 'Unexpected command: "%s"' % text
         # parse text for your business
         response = TextContent.create(text=res)
         # calibrate the clock
@@ -702,23 +633,30 @@ class TextContentProcessor(BaseContentProcessor, Logging):
 class StatContentProcessor(CustomizedContentProcessor, Logging):
     """ Process customized stat content """
 
-    # Override
-    async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
-        assert isinstance(content, CustomizedContent), 'stat content error: %s' % content
-        app = content.application
-        mod = content.module
-        act = content.action
-        sender = r_msg.sender
-        self.debug(msg='received content from %s: %s, %s, %s' % (sender, app, mod, act))
-        return await super().process_content(content=content, r_msg=r_msg)
+    def __init__(self, facebook, messenger):
+        super().__init__(facebook=facebook, messenger=messenger)
+        self.__stat_handler = StatHandler(facebook=facebook, messenger=messenger)
+
+    @property
+    def stat_handler(self) -> CustomizedContentHandler:
+        return self.__stat_handler
 
     # Override
-    def _filter(self, app: str, content: CustomizedContent, msg: ReliableMessage) -> Optional[List[Content]]:
+    def _filter(self, app: str, mod: str, content: CustomizedContent, msg: ReliableMessage) -> CustomizedContentHandler:
         if app == 'chat.dim.monitor':
             # app ID matched
-            return None
-        # unknown app ID
-        return super()._filter(app=app, content=content, msg=msg)
+            return self.stat_handler
+        # other handlers
+        return super()._filter(app=app, mod=mod, content=content, msg=msg)
+
+
+class StatHandler(BaseCustomizedHandler, Logging):
+
+    def __init__(self, facebook, messenger):
+        super().__init__(facebook=facebook, messenger=messenger)
+        self.__users_listeners = None
+        self.__stats_listeners = None
+        self.__speeds_listeners = None
 
     # Override
     async def handle_action(self, act: str, sender: ID,

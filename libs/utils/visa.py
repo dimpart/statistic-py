@@ -2,7 +2,7 @@
 # ==============================================================================
 # MIT License
 #
-# Copyright (c) 2019 Albert Moky
+# Copyright (c) 2025 Albert Moky
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,39 +23,43 @@
 # SOFTWARE.
 # ==============================================================================
 
-"""
-    Client Module
-    ~~~~~~~~~~~~~
 
 """
+    User Info
+    ~~~~~~~~~
 
-from dimples.common.compat import LibraryLoader
-from dimples.common import CommonArchivist as ClientArchivist
-from dimples.client import ClientMessageProcessor as ClientProcessor
-from dimples.client.cpu import AppCustomizedProcessor as CustomizedContentProcessor
-from dimples.client.cpu import ClientContentProcessorCreator
+"""
 
-from dimples import CustomizedContentHandler
-from dimples import BaseCustomizedHandler
+from typing import Optional, Dict
 
-from .packer import ClientPacker
-from .emitter import Emitter
+from dimples import Visa
 
 
-__all__ = [
+def get_name(visa: Visa) -> str:
+    name = visa.name
+    if name is None or len(name) == 0:
+        identifier = visa.identifier
+        name = identifier.name
+        if name is None or len(name) == 0:
+            name = str(identifier.address)
+    return name
 
-    'LibraryLoader',
 
-    'CustomizedContentProcessor',
-    'ClientContentProcessorCreator',
-
-    'CustomizedContentHandler',
-    'BaseCustomizedHandler',
-
-    'ClientArchivist',
-
-    'ClientProcessor',
-    'ClientPacker',
-    'Emitter',
-
-]
+def get_locale(visa: Visa) -> Optional[str]:
+    app = visa.get_property(name='app')
+    if isinstance(app, Dict):
+        language = app.get('language')
+    else:
+        language = None
+    sys = visa.get_property(name='sys')
+    if isinstance(sys, Dict):
+        locale = sys.get('locale')
+    else:
+        locale = None
+    # OK
+    if language is None:
+        return locale
+    elif locale is None:
+        return language
+    else:
+        return '%s(%s)' % (language, locale)

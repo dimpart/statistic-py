@@ -2,7 +2,7 @@
 # ==============================================================================
 # MIT License
 #
-# Copyright (c) 2019 Albert Moky
+# Copyright (c) 2025 Albert Moky
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,39 +23,40 @@
 # SOFTWARE.
 # ==============================================================================
 
-"""
-    Client Module
-    ~~~~~~~~~~~~~
 
 """
+    Date Time
+    ~~~~~~~~~
 
-from dimples.common.compat import LibraryLoader
-from dimples.common import CommonArchivist as ClientArchivist
-from dimples.client import ClientMessageProcessor as ClientProcessor
-from dimples.client.cpu import AppCustomizedProcessor as CustomizedContentProcessor
-from dimples.client.cpu import ClientContentProcessorCreator
+"""
 
-from dimples import CustomizedContentHandler
-from dimples import BaseCustomizedHandler
+import time
+from typing import Tuple
 
-from .packer import ClientPacker
-from .emitter import Emitter
+from dimples import DateTime
 
 
-__all__ = [
+def two_digits(value: int) -> str:
+    if value < 10:
+        return '0%s' % value
+    else:
+        return '%s' % value
 
-    'LibraryLoader',
 
-    'CustomizedContentProcessor',
-    'ClientContentProcessorCreator',
+def yesterday() -> str:
+    day = DateTime.current_timestamp() - 3600 * 24
+    day = DateTime(timestamp=day)
+    day = str(day)
+    array = day.split()
+    return array[0]
 
-    'CustomizedContentHandler',
-    'BaseCustomizedHandler',
 
-    'ClientArchivist',
-
-    'ClientProcessor',
-    'ClientPacker',
-    'Emitter',
-
-]
+def parse_time(msg_time: float) -> Tuple[str, str, str, str, str]:
+    local_time = time.localtime(msg_time)
+    assert isinstance(local_time, time.struct_time), 'time error: %s' % local_time
+    year = str(local_time.tm_year)
+    month = two_digits(value=local_time.tm_mon)
+    day = two_digits(value=local_time.tm_mday)
+    hours = two_digits(value=local_time.tm_hour)
+    minutes = two_digits(value=local_time.tm_min)
+    return year, month, day, hours, minutes
