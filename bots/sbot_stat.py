@@ -83,7 +83,7 @@
 
 import threading
 import time
-from typing import Optional, Tuple, Set, List, Dict
+from typing import Optional, Union, Tuple, Set, List, Dict
 
 from dimples import DateTime
 from dimples import ID, Visa
@@ -93,8 +93,13 @@ from dimples import TextContent, CustomizedContent
 from dimples import ContentProcessor, ContentProcessorCreator
 from dimples import BaseContentProcessor
 from dimples import CommonFacebook, CommonMessenger
+from dimples import MessageExtensions, shared_message_extensions
+
 from dimples.database import Storage
 from dimples.client import ClientMessageProcessor
+from dimples.client.cpu import BaseCustomizedContentHandler
+from dimples.client.cpu import AppCustomizedFilter
+from dimples.client.cpu import CustomizedFilterExtensions
 
 from dimples.utils import Config
 from dimples.utils import Singleton, Log, Logging
@@ -109,8 +114,6 @@ from libs.utils import template_replace
 from libs.utils import md_user_url
 from libs.utils import get_name, get_locale
 from libs.utils import yesterday, parse_time
-from libs.client import CustomizedContentProcessor
-from libs.client import CustomizedContentHandler, BaseCustomizedHandler
 from libs.client import ClientContentProcessorCreator
 
 from bots.shared import GlobalVariable
@@ -436,6 +439,11 @@ class StatRecorder(Runner, Logging):
         return True
 
 
+#
+#   CPU - Content Processing Unit
+#
+
+
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
 
@@ -630,37 +638,17 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         return [response]
 
 
-class StatContentProcessor(CustomizedContentProcessor, Logging):
-    """ Process customized stat content """
+class StatHandler(BaseCustomizedContentHandler, Logging):
 
-    def __init__(self, facebook, messenger):
-        super().__init__(facebook=facebook, messenger=messenger)
-        self.__stat_handler = StatHandler(facebook=facebook, messenger=messenger)
-
-    @property
-    def stat_handler(self) -> CustomizedContentHandler:
-        return self.__stat_handler
-
-    # Override
-    def _filter(self, app: str, mod: str, content: CustomizedContent, msg: ReliableMessage) -> CustomizedContentHandler:
-        if app == 'chat.dim.monitor':
-            # app ID matched
-            return self.stat_handler
-        # other handlers
-        return super()._filter(app=app, mod=mod, content=content, msg=msg)
-
-
-class StatHandler(BaseCustomizedHandler, Logging):
-
-    def __init__(self, facebook, messenger):
-        super().__init__(facebook=facebook, messenger=messenger)
+    def __init__(self):
+        super().__init__()
         self.__users_listeners = None
         self.__stats_listeners = None
         self.__speeds_listeners = None
 
     # Override
-    async def handle_action(self, act: str, sender: ID,
-                            content: CustomizedContent, msg: ReliableMessage) -> List[Content]:
+    async def handle_action(self, content: CustomizedContent, msg: ReliableMessage,
+                            messenger: CommonMessenger) -> List[Content]:
         recorder = StatRecorder()
         mod = content.module
         if mod == 'users':
@@ -680,9 +668,38 @@ class StatHandler(BaseCustomizedHandler, Logging):
                           % (content.time, len(stations), remote, user, provider))
             recorder.add_log(content=content)
         else:
+            act = content.action
             self.error(msg='unknown module: %s, action: %s, [%s] %s' % (mod, act, content.time, content))
         # respond nothing
         return []
+
+
+# -----------------------------------------------------------------------------
+#  Message Extensions
+# -----------------------------------------------------------------------------
+
+
+def message_extensions() -> Union[MessageExtensions, CustomizedFilterExtensions]:
+    return shared_message_extensions
+
+
+def get_app_filter() -> AppCustomizedFilter:
+    ext = message_extensions()
+    app_filter = ext.customized_filter
+    if not isinstance(app_filter, AppCustomizedFilter):
+        app_filter = AppCustomizedFilter()
+        ext.customized_filter = app_filter
+    return app_filter
+
+
+def register_customized_handlers():
+    app_filter = get_app_filter()
+    # 'chat.dim.monitor:*'
+    handler = StatHandler()
+    app = 'chat.dim.monitor'
+    modules = ['users', 'stats', 'speeds']
+    for mod in modules:
+        app_filter.set_content_handler(app=app, mod=mod, handler=handler)
 
 
 class BotContentProcessorCreator(ClientContentProcessorCreator):
@@ -692,9 +709,6 @@ class BotContentProcessorCreator(ClientContentProcessorCreator):
         # text
         if msg_type == ContentType.TEXT:
             return TextContentProcessor(facebook=self.facebook, messenger=self.messenger)
-        # application customized
-        if msg_type == ContentType.CUSTOMIZED:
-            return StatContentProcessor(facebook=self.facebook, messenger=self.messenger)
         # others
         return super().create_content_processor(msg_type=msg_type)
 
@@ -723,6 +737,8 @@ async def main():
     shared = GlobalVariable()
     config = await create_config(app_name='ServiceBot: Statistics', default_config=DEFAULT_CONFIG)
     await shared.prepare(config=config)
+    # register handlers
+    register_customized_handlers()
     #
     #  Start recorder
     #

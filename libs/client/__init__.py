@@ -30,13 +30,9 @@
 """
 
 from dimples.common.compat import LibraryLoader
-from dimples.common import CommonArchivist as ClientArchivist
-from dimples.client import ClientMessageProcessor as ClientProcessor
-from dimples.client.cpu import AppCustomizedProcessor as CustomizedContentProcessor
 from dimples.client.cpu import ClientContentProcessorCreator
-
-from dimples import CustomizedContentHandler
-from dimples import BaseCustomizedHandler
+from dimples.client import ClientArchivist
+from dimples.client import ClientMessageProcessor as ClientProcessor
 
 from .packer import ClientPacker
 from .emitter import Emitter
@@ -46,11 +42,7 @@ __all__ = [
 
     'LibraryLoader',
 
-    'CustomizedContentProcessor',
     'ClientContentProcessorCreator',
-
-    'CustomizedContentHandler',
-    'BaseCustomizedHandler',
 
     'ClientArchivist',
 

@@ -29,6 +29,7 @@ from typing import Optional
 
 from dimples import ID
 from dimples import Document
+from dimples import DocumentUtils
 from dimples import CommonFacebook
 from dimples import AccountDBI, MessageDBI, SessionDBI
 from dimples.group import SharedGroupManager
@@ -43,6 +44,7 @@ from libs.database import Database
 
 from libs.client import LibraryLoader
 from libs.client import ClientArchivist
+from libs.client import ClientPacker
 from libs.client import Emitter
 
 
@@ -137,12 +139,13 @@ class GlobalVariable:
         print('set current user: %s' % current_user)
         user = await facebook.get_user(identifier=current_user)
         assert user is not None, 'failed to get current user: %s' % current_user
-        visa = await user.visa
+        docs = await user.documents
+        visa = DocumentUtils.last_visa(documents=docs)
         if visa is not None:
             # refresh visa
             visa = Document.parse(document=visa.copy_dictionary())
             visa.sign(private_key=sign_key)
-            await archivist.save_document(document=visa)
+            await archivist.save_document(document=visa, identifier=current_user)
         await facebook.set_current_user(user=user)
 
 
@@ -239,6 +242,10 @@ class BotClient(Terminal):
     def __init__(self, facebook: ClientFacebook, database: SessionDBI, processor_class):
         super().__init__(facebook=facebook, database=database)
         self.__processor_class = processor_class
+
+    # Override
+    def _create_packer(self, facebook: ClientFacebook, messenger: ClientMessenger) -> ClientPacker:
+        return ClientPacker(facebook=facebook, messenger=messenger)
 
     # Override
     def _create_processor(self, facebook: ClientFacebook, messenger: ClientMessenger):
