@@ -41,6 +41,7 @@ from libs.utils import md_user_url
 from libs.utils import get_locale
 from libs.utils import yesterday
 from libs.client import RequestFilter
+from libs.client import Emitter
 
 from bots.shared import GlobalVariable
 from bots.stat_recoder import g_recorder
@@ -283,14 +284,24 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         #   build response
         #
         response = TextContent.create(text=res)
-        if group is not None:
-            response.group = group
-        # calibrate the clock
-        req_time = content.time
-        res_time = response.time
-        print('checking respond time: %s, %s' % (res_time, req_time))
-        if res_time is None or res_time <= req_time:
-            response['time'] = req_time + 1
         # respond in markdown format
         response['format'] = 'markdown'
-        return [response]
+        # calibrate the clock
+        calibrate_time(content=response, request=content)
+        if group is None:
+            return [response]
+        # else:
+        #     response.group = group
+        emitter = Emitter()
+        await emitter.send_content(content=response, receiver=group)
+        # return [response]
+        return []
+
+
+def calibrate_time(content: Content, request: Content, period: float = 1.0):
+    res_time = content.time
+    req_time = request.time
+    if req_time is None:
+        assert False, 'request error: %s' % req_time
+    elif res_time is None or res_time <= req_time:
+        content['time'] = req_time + period

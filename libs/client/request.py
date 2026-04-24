@@ -96,4 +96,4 @@ class RequestFilter:
                 return naked
         else:
             assert False, 'sender error: %s' % sender
-        Log.info('ignore group message that not querying me("%s" %s): %s' % (bot_name, receiver, text))
+        Log.info('ignore group message that not querying me("%s" %s): "%s"' % (bot_name, receiver, text))

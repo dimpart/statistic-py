@@ -30,6 +30,7 @@ from dimples import EncryptKey, ID
 from dimples import InstantMessage, ReliableMessage
 from dimples import Envelope, Content
 from dimples import TextContent, FileContent
+from dimples.group import SharedGroupManager
 from dimples.client import ClientMessenger
 
 from ..utils import md5, hex_encode
@@ -100,8 +101,9 @@ class Emitter(Logging):
         self.info(msg='send message (type=%s): %s -> %s' % (msg.content.type, msg.sender, msg.receiver))
         receiver = msg.receiver
         if receiver.is_group:
-            # TODO: send by group manager
-            assert False, 'error: %s, %s' % (receiver, msg)
+            # send by group manager
+            g_man = SharedGroupManager()
+            r_msg = await g_man.send_instant_message(msg=msg)
         else:
             # send by shared messenger
             messenger = self.messenger

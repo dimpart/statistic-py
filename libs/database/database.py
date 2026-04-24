@@ -43,6 +43,8 @@ from dimples.database import PrivateKeyTable
 from dimples.database import CipherKeyTable
 from dimples.database import MetaTable
 from dimples.database import DocumentTable
+from dimples.database import GroupTable
+from dimples.database import GroupHistoryTable
 
 
 class Database(AccountDBI, MessageDBI, SessionDBI):
@@ -55,6 +57,9 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         self.__private_table = PrivateKeyTable(config=config)
         self.__meta_table = MetaTable(config=config)
         self.__document_table = DocumentTable(config=config)
+        self.__group_table = GroupTable(config=config)
+        self.__history_table = GroupHistoryTable(config=config)
+        # Message
         self.__cipherkey_table = CipherKeyTable(config=config)
         # # ANS
         # self.__ans_table = AddressNameTable(info=info)
@@ -64,6 +69,8 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
         self.__private_table.show_info()
         self.__meta_table.show_info()
         self.__document_table.show_info()
+        self.__group_table.show_info()
+        self.__history_table.show_info()
         self.__cipherkey_table.show_info()
         # # ANS
         # self.__ans_table.show_info()
@@ -226,31 +233,27 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     async def get_founder(self, group: ID) -> Optional[ID]:
-        pass
+        return await self.__group_table.get_founder(group=group)
 
     # Override
     async def get_owner(self, group: ID) -> Optional[ID]:
-        pass
+        return await self.__group_table.get_owner(group=group)
 
     # Override
     async def get_members(self, group: ID) -> List[ID]:
-        # TODO: get group members
-        return []
+        return await self.__group_table.get_members(group=group)
 
     # Override
     async def save_members(self, members: List[ID], group: ID) -> bool:
-        # TODO: save group members
-        return True
+        return await self.__group_table.save_members(members=members, group=group)
 
     # Override
     async def get_administrators(self, group: ID) -> List[ID]:
-        # TODO: get group administrators
-        return []
+        return await self.__group_table.get_administrators(group=group)
 
     # Override
     async def save_administrators(self, administrators: List[ID], group: ID) -> bool:
-        # TODO: save group administrators
-        return True
+        return await self.__group_table.save_administrators(administrators=administrators, group=group)
 
     #
     #   Group History DBI
@@ -258,23 +261,23 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
 
     # Override
     async def save_group_history(self, group: ID, content: GroupCommand, message: ReliableMessage) -> bool:
-        return True
+        return await self.__history_table.save_group_history(group=group, content=content, message=message)
 
     # Override
     async def get_group_histories(self, group: ID) -> List[Tuple[GroupCommand, ReliableMessage]]:
-        return []
+        return await self.__history_table.get_group_histories(group=group)
 
     # Override
     async def get_reset_command_message(self, group: ID) -> Tuple[Optional[ResetCommand], Optional[ReliableMessage]]:
-        return None, None
+        return await self.__history_table.get_reset_command_message(group=group)
 
     # Override
     async def clear_group_member_histories(self, group: ID) -> bool:
-        return True
+        return await self.__history_table.clear_group_member_histories(group=group)
 
     # Override
     async def clear_group_admin_histories(self, group: ID) -> bool:
-        return True
+        return await self.__history_table.clear_group_admin_histories(group=group)
 
     """
         Reliable message for Receivers
