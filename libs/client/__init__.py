@@ -37,6 +37,8 @@ from dimples.client import ClientMessageProcessor as ClientProcessor
 from .packer import ClientPacker
 from .emitter import Emitter
 
+from .request import RequestFilter
+
 
 __all__ = [
 
@@ -49,5 +51,7 @@ __all__ = [
     'ClientProcessor',
     'ClientPacker',
     'Emitter',
+
+    'RequestFilter',
 
 ]

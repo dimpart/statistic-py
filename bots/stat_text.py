@@ -38,8 +38,9 @@ from dimples.utils import Log, Logging
 
 from libs.utils import template_replace
 from libs.utils import md_user_url
-from libs.utils import get_name, get_locale
+from libs.utils import get_locale
 from libs.utils import yesterday
+from libs.client import RequestFilter
 
 from bots.shared import GlobalVariable
 from bots.stat_recoder import g_recorder
@@ -99,6 +100,10 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         transceiver = super().messenger
         assert isinstance(transceiver, CommonMessenger), 'transceiver error: %s' % transceiver
         return transceiver
+
+    @property
+    def request_filter(self) -> RequestFilter:
+        return RequestFilter(facebook=self.facebook)
 
     async def __get_visa(self, sender: str) -> Optional[Visa]:
         identifier = ID.parse(identifier=sender)
@@ -193,14 +198,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                   '* speeds {yyyy-mm-dd}\n'
 
     async def _help_info(self, supervisors: List[ID]) -> str:
-        facebook = self.facebook
+        request_filter = self.request_filter
         text = '## Supervisors\n'
         for did in supervisors:
-            visa = await facebook.get_visa(user=did)
-            if visa is None:
+            name = await request_filter.get_nickname(identifier=did)
+            if name is None or len(name) == 0:
                 text += '* %s\n' % did
                 continue
-            name = get_name(visa=visa)
             text += '* "%s" - %s\n' % (name, did)
         prompt = template_replace(template=self.HELP_PROMPT, key='yyyy-mm-dd', value=yesterday())
         return '%s\n%s' % (prompt, text)
@@ -246,18 +250,26 @@ class TextContentProcessor(BaseContentProcessor, Logging):
     async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
         assert isinstance(content, TextContent), 'text content error: %s' % content
         text = content.text
+        group = content.group
         sender = r_msg.sender
-        visa = await self.facebook.get_visa(user=sender)
-        if visa is None:
+        request_filter = self.request_filter
+        nickname = await request_filter.get_nickname(identifier=sender)
+        if nickname is None or len(nickname) == 0:
             nickname = str(sender)
-        else:
-            nickname = get_name(visa=visa)
-        self.info(msg='received text message from "%s": "%s"' % (nickname, text))
-        if text is None:
+        self.info(msg='received text message from "%s" %s: "%s"' % (nickname, group, text))
+        #
+        #   filter text
+        #
+        naked = await request_filter.filter_text(text=text, content=content, envelope=r_msg.envelope)
+        if naked is None:
+            self.info(msg='ignore text from "%s" %s: "%s"' % (nickname, group, text))
             return []
         else:
-            text = text.strip()
+            text = naked.strip()
             supervisors = await get_supervisors()
+        #
+        #   system commands
+        #
         if text == 'help':
             res = await self._help_info(supervisors=supervisors)
         elif text in self.ADMIN_COMMANDS:
@@ -266,8 +278,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
         else:
             res = 'Unexpected command: "%s"' % text
-        # parse text for your business
+            # TODO: parse text for your business
+        #
+        #   build response
+        #
         response = TextContent.create(text=res)
+        if group is not None:
+            response.group = group
         # calibrate the clock
         req_time = content.time
         res_time = response.time
