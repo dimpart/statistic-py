@@ -34,22 +34,19 @@ from dimples import TextContent
 from dimples import BaseContentProcessor
 from dimples import CommonFacebook, CommonMessenger
 
-from dimples.utils import Log, Logging
-
 from libs.utils import template_replace
+from libs.utils import get_supervisors, md_supervisors
 from libs.utils import md_user_url
 from libs.utils import get_locale
 from libs.utils import yesterday
+from libs.utils import Log, Logging
+from libs.utils import Config
+
 from libs.client import RequestFilter
 from libs.client import Emitter
 
 from bots.shared import GlobalVariable
 from bots.stat_recoder import g_recorder
-
-
-async def get_supervisors() -> List[ID]:
-    shared = GlobalVariable()
-    return await shared.config.get_supervisors(facebook=shared.facebook)
 
 
 def math_stat(array: List[float]) -> Tuple[str, int]:
@@ -89,6 +86,11 @@ def parse_ip(ip):
 
 class TextContentProcessor(BaseContentProcessor, Logging):
     """ Process text message content """
+
+    @property
+    def config(self) -> Config:
+        shared = GlobalVariable()
+        return shared.config
 
     @property
     def facebook(self) -> CommonFacebook:
@@ -198,19 +200,16 @@ class TextContentProcessor(BaseContentProcessor, Logging):
                   '* speeds\n' \
                   '* speeds {yyyy-mm-dd}\n'
 
-    async def _help_info(self, supervisors: List[ID]) -> str:
-        request_filter = self.request_filter
-        text = '## Supervisors\n'
-        for did in supervisors:
-            name = await request_filter.get_nickname(identifier=did)
-            if name is None or len(name) == 0:
-                text += '* %s\n' % did
-                continue
-            text += '* "%s" - %s\n' % (name, did)
+    async def _help_info(self) -> str:
         prompt = template_replace(template=self.HELP_PROMPT, key='yyyy-mm-dd', value=yesterday())
-        return '%s\n%s' % (prompt, text)
+        # get supervisors from config
+        text = await md_supervisors(config=self.config, facebook=self.facebook, section='statistic')
+        return '%s\n\n## Supervisors\n%s' % (prompt, text)
 
-    async def _process_admin_command(self, cmd: str, sender: ID, supervisors: List[ID]) -> str:
+    async def _process_admin_command(self, cmd: str, sender: ID) -> str:
+        # check permissions before executing command
+        self.info(msg='process admin command: "%s"' % cmd)
+        supervisors = await get_supervisors(config=self.config, facebook=self.facebook, section='statistic')
         # check permissions before executing command
         if sender not in supervisors:
             self.warning(msg='permission denied: "%s", sender: %s' % (cmd, sender))
@@ -267,16 +266,15 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             return []
         else:
             text = naked.strip()
-            supervisors = await get_supervisors()
         #
         #   system commands
         #
         if text == 'help':
-            res = await self._help_info(supervisors=supervisors)
+            res = await self._help_info()
         elif text in self.ADMIN_COMMANDS:
-            res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
+            res = await self._process_admin_command(cmd=text, sender=sender)
         elif text.startswith('users ') or text.startswith('speeds '):
-            res = await self._process_admin_command(cmd=text, sender=sender, supervisors=supervisors)
+            res = await self._process_admin_command(cmd=text, sender=sender)
         else:
             res = 'Unexpected command: "%s"' % text
             # TODO: parse text for your business

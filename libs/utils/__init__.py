@@ -45,6 +45,7 @@ from .md import md_esc
 from .md import md_user_url
 
 from .visa import get_name, get_locale
+from .admin import get_supervisors, md_supervisors
 
 from .datetime import yesterday, parse_time
 
@@ -69,7 +70,7 @@ __all__ = [
     'FrequencyChecker', 'RecentTimeChecker',
 
     'Log', 'Logging',
-    'Config',
+    'Config', 'Supervisor',
 
     'is_before',
     'get_msg_sig',
@@ -91,6 +92,7 @@ __all__ = [
     'md_user_url',
 
     'get_name', 'get_locale',
+    'get_supervisors', 'md_supervisors',
 
     'yesterday', 'parse_time',
 
