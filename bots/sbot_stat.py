@@ -30,6 +30,7 @@
     Bot for statistics
 """
 
+import sys
 from typing import Optional, List
 
 from dimples import ReliableMessage
@@ -42,8 +43,11 @@ from dimples.client import ClientMessageProcessor
 from dimples.client.cpu import BaseCustomizedContentHandler
 from dimples.client.cpu.app.filter import get_app_filter
 
-from dimples.utils import Log, Logging
-from dimples.utils import Path, Runner
+from dimples.utils import SysArgvParser
+from dimples.utils import init_logger
+from dimples.utils import Log, LogLevel, Logging
+from dimples.utils import Runner
+from dimples.utils import Path
 
 path = Path.abs(path=__file__)
 path = Path.dir(path=path)
@@ -54,6 +58,8 @@ from libs.client import ClientContentProcessorCreator
 
 from bots.shared import GlobalVariable
 from bots.shared import create_config, start_bot
+from bots.shared import show_help
+
 from bots.stat_recoder import g_recorder
 from bots.stat_text import TextContentProcessor
 
@@ -72,23 +78,23 @@ class StatHandler(BaseCustomizedContentHandler, Logging):
         mod = content.module
         if mod == 'users':
             users = content.get('users')
-            self.info(msg='received station log [%s] users: %s' % (content.time, users))
+            self.info('received station log [%s] users: %s', content.time, users)
             g_recorder.add_log(content=content)
         elif mod == 'stats':
             stats = content.get('stats')
-            self.info(msg='received station log [%s] stats: %s' % (content.time, stats))
+            self.info('received station log [%s] stats: %s', content.time, stats)
             g_recorder.add_log(content=content)
         elif mod == 'speeds':
             user = content.get('U')
             provider = content.get('provider')
             stations = content.get('stations')
             remote = content.get('remote_address')
-            self.info(msg='received client log [%s] speeds count: %d, %s, %s => %s'
-                          % (content.time, len(stations), remote, user, provider))
+            self.info('received client log [%s] speeds count: %d, %s, %s => %s',
+                      content.time, len(stations), remote, user, provider)
             g_recorder.add_log(content=content)
         else:
             act = content.action
-            self.error(msg='unknown module: %s, action: %s, [%s] %s' % (mod, act, content.time, content))
+            self.error('unknown module: %s, action: %s, [%s] %s', mod, act, content.time, content)
         # respond nothing
         return []
 
@@ -132,31 +138,53 @@ class BotMessageProcessor(ClientMessageProcessor):
 
 
 #
-# show logs
+#  show logs
 #
-Log.LEVEL = Log.DEVELOP
+LOG_LEVEL = LogLevel.DEVELOP
 
+BOT_NAME = 'statistic'
+
+APP_NAME = 'ServiceBot: Statistics'
 
 DEFAULT_CONFIG = '/etc/dim/stat.ini'
 
 
 async def main():
-    # create global variable
-    shared = GlobalVariable()
-    config = await create_config(app_name='ServiceBot: Statistics', default_config=DEFAULT_CONFIG)
-    await shared.prepare(config=config)
-    # register handlers
+    #
+    #  parse cmd parameters
+    #
+    sys_argv = SysArgvParser.parse(shortopts='hf:ld:',
+                                   longopts=['help', 'config=', 'log-location', 'log-dir='])
+    if sys_argv is None:
+        show_help(app_name=APP_NAME, cmd=sys.argv[0], default_config=DEFAULT_CONFIG)
+        sys.exit(1)
+    #
+    #  init logger
+    #
+    show_location = sys_argv.has_opt(opt='log-location')
+    init_logger(name=BOT_NAME, level=LOG_LEVEL, show_location=show_location)
+    #
+    #  create config
+    #
+    config = await create_config(sys_argv=sys_argv, default_config=DEFAULT_CONFIG)
+    if config is None:
+        show_help(app_name=APP_NAME, cmd=sys.argv[0], default_config=DEFAULT_CONFIG)
+        sys.exit(1)
+    #
+    #  register handlers
+    #
     register_customized_handlers()
     #
     #  Start recorder
     #
+    shared = GlobalVariable()
     g_recorder.config = shared.config
     g_recorder.start()
     #
     #  Create & start the bot
     #
-    client = await start_bot(ans_name='statistic', processor_class=BotMessageProcessor)
-    Log.warning(msg='bot stopped: %s' % client)
+    client = await start_bot(ans_name=BOT_NAME, processor_class=BotMessageProcessor)
+    Log.warning('bot stopped: %s', client)
 
 
 if __name__ == '__main__':

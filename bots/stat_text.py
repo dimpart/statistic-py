@@ -59,7 +59,7 @@ def math_stat(array: List[float]) -> Tuple[str, int]:
         right = array.pop()
         left = array.pop(0)
         return '%.3f, %.3f' % (left, right), count
-    Log.info(msg='array (%d): %s' % (count, array))
+    Log.info('array (%d): %s', count, array)
     array = sorted(array)
     right = array.pop()
     left = array.pop(0)
@@ -95,13 +95,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
     @property
     def facebook(self) -> CommonFacebook:
         barrack = super().facebook
-        assert isinstance(barrack, CommonFacebook), 'barrack error: %s' % barrack
+        assert isinstance(barrack, CommonFacebook), f'barrack error: {barrack}'
         return barrack
 
     @property
     def messenger(self) -> CommonMessenger:
         transceiver = super().messenger
-        assert isinstance(transceiver, CommonMessenger), 'transceiver error: %s' % transceiver
+        assert isinstance(transceiver, CommonMessenger), f'transceiver error: {transceiver}'
         return transceiver
 
     @property
@@ -122,31 +122,31 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             try:
                 now = time.mktime(time.strptime(day, '%Y-%m-%d'))
             except ValueError as e:
-                text = 'error date: %s, %s' % (day, e)
-                self.error(msg=text)
+                text = f'error date: {day}, {e}'
+                self.error(text)
                 return text
         text = '| User | IP |\n'
         text += '|------|----|\n'
         users = await g_recorder.get_users(now=now)
-        self.info(msg='users: %s' % str(users))
+        self.info('users: %s', str(users))
         for item in users:
             # get user info
             sender = item.get('U')
             visa = await self.__get_visa(sender=sender)
             if visa is None:
-                title = '**%s**' % sender
+                title = f'**{sender}**'
             else:
                 title = md_user_url(visa=visa)
                 # get language
                 locale = get_locale(visa=visa)
                 if locale is not None:
-                    title = '%s - %s' % (title, locale)
+                    title = f'{title} - {locale}'
             # get IP info
             ip = item.get('IP')
             ip = parse_ip(ip=ip)
-            text += '| %s | %s |\n' % (title, ip)
+            text += f'| {title} | {ip} |\n'
         text += '\n'
-        text += 'Total: %d, Date: %s' % (len(users), day)
+        text += f'Total: {len(users)}, Date: {day}'
         return text
 
     async def __get_speeds(self, day: str) -> str:
@@ -158,13 +158,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             try:
                 now = time.mktime(time.strptime(day, '%Y-%m-%d'))
             except ValueError as e:
-                text = 'error date: %s, %s' % (day, e)
-                self.error(msg=text)
+                text = f'error date: {day}, {e}'
+                self.error(text)
                 return text
         text = '| User | IP | Station | Times |\n'
         text += '|-----|----|---------|-------|\n'
         speeds = await g_recorder.get_speeds(now=now)
-        self.info(msg='speeds: %s' % str(speeds))
+        self.info('speeds: %s', str(speeds))
         for item in speeds:
             sender = item.get('U')
             ip = item.get('client_ip')
@@ -177,16 +177,16 @@ class TextContentProcessor(BaseContentProcessor, Logging):
             rt = item.get('rt')
             rt, c = math_stat(array=rt)
             if c > 3:
-                rt += ', count: %d' % c
+                rt += f', count: {c}'
             # get user info
             visa = await self.__get_visa(sender=sender)
             if visa is None:
-                title = '**%s**' % sender
+                title = f'**{sender}**'
             else:
                 title = md_user_url(visa=visa)
-            text += '| **%s** | %s | %s | %s |\n' % (title, ip, mta, rt)
+            text += f'| **{title}** | {ip} | {mta} | {rt} |\n'
         text += '\n'
-        text += 'Total: %d, Date: %s' % (len(speeds), day)
+        text += f'Total: {len(speeds)}, Date: {day}'
         return text
 
     ADMIN_COMMANDS = [
@@ -204,15 +204,15 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         prompt = template_replace(template=self.HELP_PROMPT, key='yyyy-mm-dd', value=yesterday())
         # get supervisors from config
         text = await md_supervisors(config=self.config, facebook=self.facebook, section='statistic')
-        return '%s\n\n## Supervisors\n%s' % (prompt, text)
+        return f'{prompt}\n\n## Supervisors\n{text}'
 
     async def _process_admin_command(self, cmd: str, sender: ID) -> str:
         # check permissions before executing command
-        self.info(msg='process admin command: "%s"' % cmd)
+        self.info('process admin command: "%s"', cmd)
         supervisors = await get_supervisors(config=self.config, facebook=self.facebook, section='statistic')
         # check permissions before executing command
         if sender not in supervisors:
-            self.warning(msg='permission denied: "%s", sender: %s' % (cmd, sender))
+            self.warning('permission denied: "%s", sender: %s', cmd, sender)
             text = 'Forbidden\n'
             text += '\n----\n'
             text += 'Permission Denied'
@@ -243,12 +243,12 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         #
         text = 'Error\n'
         text += '\n----\n'
-        text += 'Unknown command: "%s"' % cmd
+        text += f'Unknown command: "{cmd}"'
         return text
 
     # Override
     async def process_content(self, content: Content, r_msg: ReliableMessage) -> List[Content]:
-        assert isinstance(content, TextContent), 'text content error: %s' % content
+        assert isinstance(content, TextContent), f'text content error: {content}'
         text = content.text
         group = content.group
         sender = r_msg.sender
@@ -256,13 +256,13 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         nickname = await request_filter.get_nickname(identifier=sender)
         if nickname is None or len(nickname) == 0:
             nickname = str(sender)
-        self.info(msg='received text message from "%s" %s: "%s"' % (nickname, group, text))
+        self.info('received text message from "%s" %s: "%s"', nickname, group, text)
         #
         #   filter text
         #
         naked = await request_filter.filter_text(text=text, content=content, envelope=r_msg.envelope)
         if naked is None:
-            self.info(msg='ignore text from "%s" %s: "%s"' % (nickname, group, text))
+            self.info('ignore text from "%s" %s: "%s"', nickname, group, text)
             return []
         else:
             text = naked.strip()
@@ -276,7 +276,7 @@ class TextContentProcessor(BaseContentProcessor, Logging):
         elif text.startswith('users ') or text.startswith('speeds '):
             res = await self._process_admin_command(cmd=text, sender=sender)
         else:
-            res = 'Unexpected command: "%s"' % text
+            res = f'Unexpected command: "{text}"'
             # TODO: parse text for your business
         #
         #   build response
@@ -300,6 +300,6 @@ def calibrate_time(content: Content, request: Content, period: float = 1.0):
     res_time = content.time
     req_time = request.time
     if req_time is None:
-        assert False, 'request error: %s' % req_time
+        assert False, f'request error: {req_time}'
     elif res_time is None or res_time <= req_time:
         content['time'] = req_time + period
