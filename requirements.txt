@@ -19,4 +19,4 @@ gevent     # 21.8.0
 # dimsdk==2.4.1
 # dimplugins==2.4.1
 
-dimples==1.6.5
+dimples==1.6.6

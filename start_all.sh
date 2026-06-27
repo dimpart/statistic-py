@@ -48,7 +48,7 @@ fi
 #
 
 title "DIM Stat Bot"
-${launch} stat "bots/sbot_stat.py"
+${launch} "statistic" "bots/sbot_stat.py"
 
 echo ""
 echo "    >>> Done <<<"
