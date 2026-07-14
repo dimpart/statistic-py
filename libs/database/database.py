@@ -36,6 +36,7 @@ from dimples import ID, Meta, Document
 from dimples import ReliableMessage
 from dimples import LoginCommand, GroupCommand, ResetCommand
 from dimples import AccountDBI, MessageDBI, SessionDBI
+from dimples import ServiceProvider
 from dimples import ProviderInfo, StationInfo
 from dimples import MetaUtils
 from dimples.utils import Config
@@ -352,9 +353,9 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
     """
 
     # Override
-    async def get_login_command_message(self, user: ID) -> Tuple[Optional[LoginCommand], Optional[ReliableMessage]]:
+    async def get_login_command_messages(self, user: ID) -> List[Tuple[LoginCommand, ReliableMessage]]:
         # TODO: get login command & messages
-        return None, None
+        return []
 
     # Override
     async def save_login_command_message(self, user: ID, content: LoginCommand, msg: ReliableMessage) -> bool:
@@ -368,7 +369,8 @@ class Database(AccountDBI, MessageDBI, SessionDBI):
     # Override
     async def all_providers(self) -> List[ProviderInfo]:
         """ get list of (SP_ID, chosen) """
-        return [ProviderInfo.GSP]
+        info = ProviderInfo(identifier=ServiceProvider.GSP, chosen=1)
+        return [info]
 
     # Override
     async def add_provider(self, identifier: ID, chosen: int = 0) -> bool:

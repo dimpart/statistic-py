@@ -35,8 +35,6 @@
 
 from dimples.utils import *
 
-from dimples.database.dos.document import parse_document
-
 from .pnf import get_filename, get_extension
 from .pnf import get_cache_name
 from .pnf import filename_from_url, filename_from_data
@@ -76,8 +74,6 @@ __all__ = [
     'is_before',
     'get_msg_sig',
     'template_replace',
-
-    'parse_document',
 
     #
     #   PNF
